@@ -1,0 +1,11 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+healthcheckPath = "/webhook"
+healthcheckTimeout = 10
+restartPolicyType = "ON_FAILURE"
+
+[cron."publicar-reels"]
+schedule = "0 10 * * 1"
+command = "python tools/publicar_instagram.py"

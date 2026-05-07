@@ -1,0 +1,14 @@
+.env
+credentials.json
+dm_context.db
+una_fila.json
+dos_fila.json
+__pycache__/
+*.pyc
+*.pyo
+videos_generados/
+logs/
+*.log
+.venv/
+venv/
+.DS_Store
