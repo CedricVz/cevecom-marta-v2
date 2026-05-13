@@ -3,12 +3,19 @@
 Sistema automatizado de contenido para Instagram para el centro de estética
 **Marta Suñé Estilista y Estética** (Barcelona). Arquitectura WAT: Workflows + Agents + Tools.
 
-## Estado del proyecto (mayo 2026 — post-limpieza v3)
+## Estado del proyecto (mayo 2026 — post-deploy Railway)
 
 | Módulo | Estado | Pendiente |
 |---|---|---|
 | Módulo 1 v3 — Pipeline con guiones de Marta | ✅ Activo y validado | — |
-| Módulo 2 — Agente de DMs | ✅ Construido | Configurar Facebook App + webhook en developers.facebook.com |
+| Módulo 2 — Agente de DMs | ✅ Activo en Railway (producción) | — |
+
+**Datos del centro:**
+- Nombre: Marta Suñé Estilista y Estética
+- Ubicación: Barcelona
+- Horario: martes a sábado de 10:00 a 19:30 (domingo y lunes cerrado)
+- Web: martasune.es
+- WhatsApp: 656 37 64 35
 
 **Eliminados en limpieza mayo 2026** (pipeline v1/v2 y herramientas de setup):
 - `tools/generar_guion.py`, `tools/leer_pendientes.py`, `tools/generar_calendario.py`
@@ -20,6 +27,15 @@ Sistema automatizado de contenido para Instagram para el centro de estética
 - `publicar_instagram.py`: eliminado `share_to_feed="true"` (deprecado en Meta API v25.0)
 - `leer_calendario_drive.py`: lee de `CALENDARIO_MARTA_SHEETS_ID` (spreadsheet de Marta)
   y escribe al Pipeline `GOOGLE_SHEETS_ID`
+
+**Deploy en Railway (mayo 2026):**
+- `config.py`: acepta `GOOGLE_CREDENTIALS_JSON` (env var) o `GOOGLE_CREDENTIALS_PATH` (disco)
+- `tools/db_context.py`: persistencia migrada de SQLite a PostgreSQL (Railway)
+- `tools/dm_responder.py`: endpoint `/healthz` sin auth para healthcheck de Railway
+- `railway.toml` + `Procfile`: deploy automático desde `main` → gunicorn 2 workers 4 threads
+- Producción: `https://cevecom-marta-v2-production.up.railway.app`
+- System prompt actualizado: identidad correcta (Marta Suñé Estilista y Estética)
+  + formato Instagram-friendly + horario y web del centro
 
 ---
 
@@ -90,37 +106,40 @@ La columna H (`Estado_proceso`) la rellena el sistema. Marta NO la toca.
 
 ---
 
-### Módulo 2 — Agente de respuesta automática a DMs (CONSTRUIDO)
+### Módulo 2 — Agente de respuesta automática a DMs (ACTIVO — Producción en Railway)
 
 Responde automáticamente a DMs de Instagram usando Meta Webhooks + OpenAI
-Responses API + Flask + ngrok. El contexto de cada conversación se persiste
-en SQLite mediante `previous_response_id`.
+Responses API + Flask. El contexto de cada conversación se persiste en
+PostgreSQL (Railway) mediante `previous_response_id` de la Responses API.
 
 **Arquitectura:**
 ```
-DM de cliente → Meta Webhooks → tools/dm_responder.py (Flask)
+DM cliente → Meta Webhooks → Railway: gunicorn + tools/dm_responder.py (Flask)
                                          │
-                                         ├─ SQLite dm_context.db (contexto por usuario)
+                                         ├─ PostgreSQL Railway (tabla `dm_context`)
                                          ├─ OpenAI Responses API (gpt-4o + file_search)
                                          └─ Instagram Graph API (envía respuesta al DM)
 ```
 
-**Arranque:**
+**Producción (siempre activo, sin acción manual):**
+- URL pública: `https://cevecom-marta-v2-production.up.railway.app`
+- Webhook Meta apunta a `/webhook` con `META_WEBHOOK_VERIFY_TOKEN`
+- Healthcheck en `/healthz` (200 OK)
+- Deploy automático en cada push a `main`
+- Logs y reinicios desde el dashboard de Railway
+
+**Desarrollo local** (sólo si necesitas debug interactivo):
 ```powershell
 # Terminal 1
 python tools/dm_responder.py
-# Terminal 2
+# Terminal 2 — expón el endpoint local a internet
 ngrok http 5000
+# luego reconfigurar Meta webhook con la URL de ngrok (revertir después)
 ```
 
-**Guía de configuración:** `tools/configurar_meta_webhook.md`
+**Guía de configuración inicial de Meta:** `tools/configurar_meta_webhook.md`
 
-**Pendiente para activar el Módulo 2:**
-- Configurar la Facebook App en [developers.facebook.com](https://developers.facebook.com)
-  - La app está creada en el **portfolio empresarial de Marta**
-  - Añadir producto **Instagram** a la app
-  - Configurar webhook con la URL de ngrok y `META_WEBHOOK_VERIFY_TOKEN`
-  - Suscribir al campo `messages`
+**Migración SQLite → Postgres** (one-shot, ya realizada): `tools/migrar_sqlite_a_postgres.py`
 
 ---
 
@@ -136,7 +155,14 @@ Todas las variables están configuradas. Las 5 variables Meta usan el System Use
 Variables clave para el pipeline v3:
 - `GOOGLE_SHEETS_ID` — spreadsheet del sistema (Sheet1 = pipeline)
 - `CALENDARIO_MARTA_SHEETS_ID` — spreadsheet de Marta ("Calendario de Contenidos")
-- `GOOGLE_CREDENTIALS_PATH` — ruta al JSON de la service account
+- `GOOGLE_CREDENTIALS_PATH` — ruta al JSON de la service account (modo local)
+
+Variables exclusivas de Railway (producción):
+- `GOOGLE_CREDENTIALS_JSON` — contenido completo del JSON de service account en
+  una línea. `tools/google_creds.py` la prefiere sobre el archivo en disco.
+- `DATABASE_URL` — connection string a PostgreSQL Railway. Si el Postgres está
+  en el mismo proyecto, usar referencia `${{Postgres.DATABASE_URL}}` para que
+  Railway la inyecte automáticamente.
 
 ---
 
@@ -170,7 +196,10 @@ Variables clave para el pipeline v3:
   a UTF-8 al arrancar para evitar errores de encoding en la consola.
 - **generar_video.py — MCP auth**: lee el token OAuth de HeyGen de `~/.claude/.credentials.json`.
   Debe ejecutarse desde Claude Code. Si el token expira, lanza un error claro con instrucciones.
-- **Módulo 2 — dependencias**: `pip install flask openai` si no están instaladas.
+- **Dependencias**: todas en `requirements.txt`. Para dev local: `pip install -r requirements.txt`.
+- **Deploy Railway**: definido en `railway.toml` (builder NIXPACKS, healthcheck
+  `/healthz`, cron de publicación semanal `0 10 * * 1`) + `Procfile`
+  (gunicorn 2 workers 4 threads). Trigger: push a `main` → redeploy automático.
 - **Meta Graph API — versión**: `publicar_instagram.py` y `dm_responder.py` usan
   `graph.instagram.com/v25.0` en todos los endpoints.
 - **System User Meta**: `CEVECOM Marta Reels` (ID: `61589023863845`) — tiene acceso
@@ -195,16 +224,20 @@ cmd /c "python tools\leer_calendario_drive.py | python tools\generar_video.py | 
 
 [Publicación]
 python tools/publicar_instagram.py
+  → También se ejecuta automáticamente desde el cron de Railway los lunes a las 10:00 UTC
 
-[Servidor de DMs — continuo]
-python tools/dm_responder.py   # + ngrok http 5000 en otra terminal
+[Servidor de DMs — Railway en producción (siempre activo, sin acción manual)]
+URL pública: https://cevecom-marta-v2-production.up.railway.app
+Redeploy automático en cada push a main.
+Debug local: python tools/dm_responder.py + ngrok http 5000
 ```
 
 ---
 
 ## Próximo paso
 
-Test de lanzamiento con el Reel de presentación del clon:
+Módulo 2 está vivo y respondiendo DMs en producción. Queda pendiente del
+Módulo 1: test de lanzamiento con el Reel de presentación del clon:
 
 ```
 cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar_aprobacion.py"
