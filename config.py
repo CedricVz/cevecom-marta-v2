@@ -111,14 +111,18 @@ def load() -> Config:
             + "\n\nCopia .env.example como .env y rellena cada valor.\n"
         )
 
-    # ── 2. GOOGLE_CREDENTIALS_PATH — el archivo debe existir ─────────────────
+    # ── 2. Credenciales Google: archivo en disco O variable de entorno ───────
+    # Local: GOOGLE_CREDENTIALS_PATH apunta al .json en disco.
+    # Railway: GOOGLE_CREDENTIALS_JSON contiene el .json como string.
+    # tools/google_creds.py prefiere la variable; si no, usa la ruta.
     creds_path = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json"))
-    if not creds_path.exists():
+    has_creds_json = bool(os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip())
+    if not has_creds_json and not creds_path.exists():
         sys.exit(
-            f"\n[config] Archivo de credenciales de Google no encontrado:\n"
-            f"  {creds_path.resolve()}\n\n"
-            f"Descarga el JSON de la Service Account y guárdalo en esa ruta.\n"
-            f"Consulta .env.example (sección GOOGLE_CREDENTIALS_PATH) para instrucciones.\n"
+            f"\n[config] No hay credenciales de Google disponibles:\n"
+            f"  - GOOGLE_CREDENTIALS_JSON no está definida (modo Railway), y\n"
+            f"  - {creds_path.resolve()} no existe en disco (modo local).\n\n"
+            f"Define una de las dos. Consulta .env.example para instrucciones.\n"
         )
 
     # ── 3. EMAIL_SMTP_PORT — debe ser entero ─────────────────────────────────

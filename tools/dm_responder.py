@@ -150,6 +150,12 @@ def _procesar_dm(sender_id: str, mensaje: str) -> None:
 app = Flask(__name__)
 
 
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    """Healthcheck sin auth — usado por Railway para verificar el servicio."""
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
     """Endpoint de verificación que Meta llama al configurar el webhook."""
