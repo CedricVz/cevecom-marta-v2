@@ -1,17 +1,18 @@
 # cevecom-marta-v2 — Contexto del proyecto
 
 Sistema automatizado de contenido para Instagram para el centro de estética
-**Marta Suñé Estilista y Estética** (Barcelona). Arquitectura WAT: Workflows + Agents + Tools.
+**Marta Suñé Estilista & Estética Avanzada** (Barcelona). Arquitectura WAT: Workflows + Agents + Tools.
 
 ## Estado del proyecto (mayo 2026 — post-deploy Railway)
 
 | Módulo | Estado | Pendiente |
 |---|---|---|
-| Módulo 1 v3 — Pipeline con guiones de Marta | ✅ Activo y validado | — |
+| Módulo 1 v3 — Pipeline con guiones de Marta | 🟡 Listo — pendiente primer health check | Smoke test + lanzar Reels 1 y 2 manualmente |
 | Módulo 2 — Agente de DMs | ✅ Activo en Railway (producción) | — |
 
 **Datos del centro:**
-- Nombre: Marta Suñé Estilista y Estética
+- Nombre: Marta Suñé Estilista & Estética Avanzada
+- Dirección: C/ Munné 15-17 bajos, Barcelona
 - Ubicación: Barcelona
 - Horario: martes a sábado de 10:00 a 19:30 (domingo y lunes cerrado)
 - Web: martasune.es
@@ -34,7 +35,7 @@ Sistema automatizado de contenido para Instagram para el centro de estética
 - `tools/dm_responder.py`: endpoint `/healthz` sin auth para healthcheck de Railway
 - `railway.toml` + `Procfile`: deploy automático desde `main` → gunicorn 2 workers 4 threads
 - Producción: `https://cevecom-marta-v2-production.up.railway.app`
-- System prompt actualizado: identidad correcta (Marta Suñé Estilista y Estética)
+- System prompt actualizado: identidad correcta (Marta Suñé Estilista & Estética Avanzada)
   + formato Instagram-friendly + horario y web del centro
 
 ---
@@ -74,7 +75,7 @@ cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar
 ```
 `una_fila.json` contiene el Reel de lanzamiento (presentación del clon de Marta, fila 2).
 
-**Columnas que rellena Marta en "Guiones_Marta" (A–G):**
+**Columnas que rellena Marta en "Guiones_Marta" (A–H):**
 
 | Col | Campo | Ejemplo |
 |-----|-------|---------|
@@ -85,8 +86,9 @@ cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar
 | E | Look_ID | (vacío = avatar predeterminado) |
 | F | Fecha_deseada | 15/06/2026 |
 | G | Guion | Texto completo que leerá el avatar |
+| H | Notas_escenas | Dirección de escena para el Video Agent (planos, B-roll, transiciones) |
 
-La columna H (`Estado_proceso`) la rellena el sistema. Marta NO la toca.
+La columna I (`Estado_proceso`) la rellena el sistema. Marta NO la toca.
 
 **Comportamiento de `leer_calendario_drive.py`:**
 - Lee filas donde `Guion` ≠ vacío y `Estado_proceso` = vacío
@@ -166,16 +168,56 @@ Variables exclusivas de Railway (producción):
 
 ---
 
-## HeyGen
+## Pipeline de vídeo — configuración actual
 
-- **Look ID**: `97175217da0f41edb57bd1aecd543792` (photo avatar — único avatar configurado)
-- **Voice ID**: `dd40b7a452d34eb69c43f8ccc69800b2` — voz nativa validada del avatar (mayo 2026)
-- **Avatar ID UI / Group ID**: `5aacc60647784288ab1e92e0b269d639` (referencia visual, no se usa en código)
+**HeyGen — IDs y assets** (validados mayo 2026 — ver memoria `project_heygen_assets.md` para inventario completo del avatar group):
+- **Look ID** (avatar usado en producción): `97175217da0f41edb57bd1aecd543792` — Photo Avatar (fuente landscape, portrait forzado por prompt)
+- **Voice ID**: `dd40b7a452d34eb69c43f8ccc69800b2` — voz nativa del avatar
+- **Brand Kit ID**: `bf6988fde35849079d09f9a6fa5b092d` — "Marta Suñé"
+- **Avatar Group ID**: `5aacc60647784288ab1e92e0b269d639` (4 looks; 2 digital twins portrait sin uso disponibles si hay que migrar)
 - **MCP**: `https://mcp.heygen.com/mcp/v1/` — añadido con `claude mcp add --transport http -s user heygen`
-- **Token OAuth**: almacenado en `~/.claude/.credentials.json` · se renueva al abrir Claude Code
+- **Token OAuth**: en `~/.claude/.credentials.json` · se renueva al abrir Claude Code
 - **Coste**: ~6 créditos del plan web por vídeo (Video Agent)
-- **REST API v2**: devuelve 403 — el plan de HeyGen no incluye acceso REST a generación de vídeo
-- **Pipeline MCP**: validado mayo 2026 — creación via `create_video_agent` + polling via `get_video_agent_session`
+- **REST API v2**: devuelve 403 — el plan de HeyGen no incluye acceso REST a generación
+- **Pipeline MCP**: `create_video_agent` con `mode="generate"` + polling vía `get_video_agent_session`
+
+**Identidad de marca inyectada al `agent_prompt`** (constantes en `tools/generar_video.py`):
+- `BRAND_COLORS = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"`
+- `CENTRO_DIR = "C/ Munné 15-17 bajos, Barcelona"`
+- `BRAND_KIT_ID = "bf6988fde35849079d09f9a6fa5b092d"` — se pasa también al `create_video_agent`
+
+**B-roll por tratamiento (`ASSET_URLS` en `tools/generar_video.py`):**
+
+9 tratamientos con vídeo propio + `default` (vídeo de la entrada del salón).
+Matching tolerante a acentos y mayúsculas vía `_asset_url_para_tratamiento(titulo)` (usa `unicodedata` para normalizar).
+
+Claves mapeadas: `laser`, `depilacion`, `maderoterapia`, `drenaje`, `linfatico`, `criolipolisis`, `fotorejuvenecimiento`, `emslim` / `em slim`, `hifu`, `botox`. Cualquier `Tema` que no contenga uno de estos substrings cae al `default` (entrada del salón) — actualmente: radiofrecuencia, higiene facial, keratina, masaje, balayage, champú, celulitis.
+
+**Notas_escenas (dirección de escena para el Video Agent):**
+- Pestaña de Marta `Guiones_Marta`: **columna H**
+- Pipeline `Sheet1`: **columna T (posición 20)** — header `Notas_escenas` (escrito vía gspread en esta sesión)
+- Flujo: `leer_calendario_drive.py` la copia al Pipeline y la incluye en el JSON → `crear_video_heygen_mcp(texto, titulo, notas_escenas="")` la inyecta en el `agent_prompt` como bloque `SCENE DIRECTION (follow exactly): …` justo antes del script hablado.
+
+**Nombre de marca oficial:** `Marta Suñé Estilista & Estética Avanzada` — unificado en mayo 2026 en `tools/dm_responder.py` (system prompt), `tools/generar_video.py` (agent_prompt) y este CLAUDE.md.
+
+---
+
+## Calendario actual (mayo 2026)
+
+5 Reels pendientes en la pestaña `Guiones_Marta`. Todos con tema, tratamiento, audiencia, tono, guion y `notas_escenas` ya rellenos por Marta — listos para procesar.
+
+| # | Contenido | Tratamiento |
+|---|---|---|
+| 1 | Vídeo de lanzamiento — presentación del clon de Marta | — |
+| 2 | Celulitis | (cae a `default` en ASSET_URLS) |
+| 3 | Champú | (cae a `default`) |
+| 4 | HIFU | matchea `hifu` → B-roll propio |
+| 5 | Balayage | (cae a `default` — peluquería sin B-roll dedicado) |
+
+El vídeo 1 también vive en `una_fila.json` para test individual con:
+```
+cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar_aprobacion.py"
+```
 
 ---
 
@@ -212,8 +254,8 @@ Variables exclusivas de Railway (producción):
 
 ```
 [Marta rellena la pestaña "Guiones_Marta" en su spreadsheet]
-  → Columnas A-G: Tema, Tratamiento, Audiencia, Tono, Look_ID, Fecha_deseada, Guion
-  → Deja columna H (Estado_proceso) en blanco
+  → Columnas A-H: Tema, Tratamiento, Audiencia, Tono, Look_ID, Fecha_deseada, Guion, Notas_escenas
+  → Deja columna I (Estado_proceso) en blanco
 
 [Pipeline — cuando Marta ha rellenado sus filas]
 cmd /c "python tools\leer_calendario_drive.py | python tools\generar_video.py | python tools\enviar_aprobacion.py"
@@ -236,12 +278,16 @@ Debug local: python tools/dm_responder.py + ngrok http 5000
 
 ## Próximo paso
 
-Módulo 2 está vivo y respondiendo DMs en producción. Queda pendiente del
-Módulo 1: test de lanzamiento con el Reel de presentación del clon:
+**Módulo 1 — primer health check del pipeline** (siguiente sesión):
 
-```
-cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar_aprobacion.py"
-```
+1. **Smoke test** con el Reel de lanzamiento (sin tocar el calendario de Marta):
+   ```
+   cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar_aprobacion.py"
+   ```
+   Verificar en HeyGen Video Agent: orientación 9:16, B-roll del Drive intercalado, brand kit aplicado, scene direction respetada.
 
-`una_fila.json` contiene el guion de presentación de Marta a sus seguidores
-(Estado="Pendiente" en Sheet1 fila 2, listo para procesar).
+2. **Lanzamiento manual** de los Reels 1 y 2 del calendario con aprobación de Marta vía email. QA visual end-to-end antes de seguir.
+
+3. **Activación del automatismo** una vez validados los dos primeros: el cron de Railway publica los `Aprobados` los lunes a las 10:00 UTC. El pipeline (`leer_calendario_drive → generar_video → enviar_aprobacion`) se sigue ejecutando manualmente; cron solo se encarga de `publicar_instagram.py`.
+
+Módulo 2 sigue vivo respondiendo DMs en producción sin intervención.

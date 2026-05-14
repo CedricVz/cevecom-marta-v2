@@ -30,6 +30,11 @@ CABECERAS: list[str] = [
     "ID_heygen",
     "Errores",
     "Reintentos",
+    # ── Bloque 6: Trazabilidad ────────────────────────────────────────
+    # Copia de las notas de escena que Marta escribió en su pestaña.
+    # Persiste qué scene direction se envió al Video Agent de HeyGen.
+    # Colocado al final para no desplazar las columnas existentes de Sheet1.
+    "Notas_escenas",
 ]
 
 # Índice por nombre → número de columna en Sheets (base 1), para updates directos

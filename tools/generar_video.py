@@ -20,6 +20,7 @@ import logging
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -46,6 +47,25 @@ HEYGEN_MCP_URL = "https://mcp.heygen.com/mcp/v1/"
 
 HEYGEN_LOOK_ID = "97175217da0f41edb57bd1aecd543792"
 VOICE_ID       = "dd40b7a452d34eb69c43f8ccc69800b2"  # voz nativa del avatar
+BRAND_COLORS   = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"
+CENTRO_DIR     = "C/ Munné 15-17 bajos, Barcelona"
+BRAND_KIT_ID   = "bf6988fde35849079d09f9a6fa5b092d"
+
+ASSET_URLS = {
+    "laser":               "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
+    "depilacion":          "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
+    "maderoterapia":       "https://drive.google.com/file/d/1s3SoIaGPp_wPT2LuIAj0xV2nNlkQtEJI/view",
+    "drenaje":             "https://drive.google.com/file/d/1kZKbnmk2SKjwDkNSIdOdZthT72zw3QET/view",
+    "linfatico":           "https://drive.google.com/file/d/1kZKbnmk2SKjwDkNSIdOdZthT72zw3QET/view",
+    "criolipolisis":       "https://drive.google.com/file/d/1baExmH8XdAfKvwx6J7h9NmD3Ay74w1-M/view",
+    "fotorejuvenecimiento":"https://drive.google.com/file/d/1PtYQinK45J6VpQWz3Wl3t2WUO-2By01N/view",
+    "emslim":              "https://drive.google.com/file/d/1WPGzNzlQxMJ5GShgcI97W4ae4JMpQQPG/view",
+    "em slim":             "https://drive.google.com/file/d/1WPGzNzlQxMJ5GShgcI97W4ae4JMpQQPG/view",
+    "hifu":                "https://drive.google.com/file/d/1nVHmDk2XFoRF3IRINfcp1_quJFMn07Ch/view",
+    "botox":               "https://drive.google.com/file/d/1MUdQgyy23Vgy614Qa8jwgxwBlnfadEz5/view",
+    "default":             "https://drive.google.com/file/d/1vfjVics-_7SlWhvymHVnq1oRrcP5hroM/view"
+}
+
 POLL_INTERVALO = 15    # segundos entre checks de estado
 POLL_TIMEOUT   = 900   # 15 minutos máximo por vídeo
 
@@ -102,22 +122,63 @@ def _leer_token_oauth_heygen() -> str:
     raise RuntimeError("No se encontró token OAuth de HeyGen en .credentials.json")
 
 
-def crear_video_heygen_mcp(texto: str, titulo: str) -> tuple[str, str]:
+def _asset_url_para_tratamiento(titulo: str) -> str:
+    def quitar_acentos(s):
+        return ''.join(
+            c for c in unicodedata.normalize('NFD', s)
+            if unicodedata.category(c) != 'Mn'
+        )
+    t = quitar_acentos(titulo.lower())
+    for key in ASSET_URLS:
+        if quitar_acentos(key) in t:
+            return ASSET_URLS[key]
+    return ASSET_URLS["default"]
+
+
+def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> tuple[str, str]:
     """Crea el vídeo via Video Agent MCP (~6 créditos, créditos plan web) y devuelve (video_id, session_id)."""
     token = _leer_token_oauth_heygen()
     client = anthropic_sdk.Anthropic(api_key=cfg.anthropic_api_key)
+    asset_url = _asset_url_para_tratamiento(titulo)
+    scene_direction = (
+        f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
+        if notas_escenas else ""
+    )
     agent_prompt = (
-        f"Create a professional vertical Instagram Reel (9:16, 35-40 seconds) "
-        f"for a beauty and aesthetics center in Barcelona called Cevecom Marta. "
-        f"Use avatar ID {HEYGEN_LOOK_ID} and voice ID {VOICE_ID}. "
-        f"The avatar must speak exactly this script:\n\n{texto}"
+        f"Create a 9:16 VERTICAL portrait Instagram Reel "
+        f"(720x1280px, 35-45 seconds) for 'Marta Suñé Estilista "
+        f"& Estética Avanzada', a premium beauty center in Barcelona "
+        f"at {CENTRO_DIR}. "
+        f"CRITICAL OUTPUT REQUIREMENT: The final video MUST be vertical "
+        f"9:16 portrait format. "
+        f"AVATAR FRAMING: Place avatar {HEYGEN_LOOK_ID} as a portrait "
+        f"talking head — crop and frame to show face and upper body "
+        f"centered in a vertical 9:16 composition. The avatar source "
+        f"is landscape but the OUTPUT must be portrait. "
+        f"Use voice ID {VOICE_ID}. "
+        f"Brand colors: {BRAND_COLORS}. Apply to text overlays and "
+        f"graphic elements. Brand kit ID: {BRAND_KIT_ID}. "
+        f"VIDEO STRUCTURE: "
+        f"[0-3s] Avatar talking head, beauty clinic background, "
+        f"warm professional lighting, portrait framing. "
+        f"[3-35s] Avatar speaks script, intercut with real footage "
+        f"from the center: {asset_url} — use this as B-roll. "
+        f"Show hands-on treatment, professional equipment, "
+        f"actual clinic space. NO generic stock footage. "
+        f"All B-roll must be portrait 9:16. "
+        f"[35-45s] Avatar delivers CTA, 'Marta Suñé' branding visible. "
+        f"STYLE: warm, professional, approachable. "
+        f"{scene_direction}"
+        f"Speak EXACTLY this script word for word:\n\n{texto}"
     )
     prompt = (
-        f'Use the HeyGen tool create_video_agent with these exact parameters: '
+        f'Use the HeyGen tool create_video_agent with: '
         f'mode="generate", orientation="portrait", '
         f'avatarId="{HEYGEN_LOOK_ID}", voiceId="{VOICE_ID}", '
+        f'brandKitId="{BRAND_KIT_ID}", '
         f'prompt="{agent_prompt.replace(chr(34), chr(39))}". '
-        f'Reply with ONLY a JSON object: {{"session_id": "<id>", "video_id": "<id>"}}'
+        f'CRITICAL: orientation must be portrait 9:16 vertical. '
+        f'Reply ONLY with JSON: {{"session_id": "<id>", "video_id": "<id>"}}'
     )
     response = client.beta.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -241,7 +302,9 @@ def main() -> None:
         try:
             texto = extraer_texto_hablado(item["guion"])
 
-            video_id, session_id = crear_video_heygen_mcp(texto, item["tema"])
+            video_id, session_id = crear_video_heygen_mcp(
+                texto, item["tema"], notas_escenas=item.get("notas_escenas", "")
+            )
             # Guarda el ID inmediatamente: si el proceso falla durante el polling
             # se puede retomar sabiendo qué job ya fue enviado.
             actualizar_fila(hoja, fila, {"ID_heygen": video_id})

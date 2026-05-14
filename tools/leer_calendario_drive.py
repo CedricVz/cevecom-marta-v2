@@ -48,7 +48,8 @@ MARTA_COL = {
     "Look_ID": 5,
     "Fecha_deseada": 6,
     "Guion": 7,
-    "Estado_proceso": 8,  # el sistema escribe aquí tras procesar la fila
+    "Notas_escenas": 8,   # dirección de escena para el Video Agent (lo lee generar_video.py)
+    "Estado_proceso": 9,  # el sistema escribe aquí tras procesar la fila
 }
 
 
@@ -114,6 +115,7 @@ def main() -> None:
     for i, marta_row in enumerate(todas[2:], start=3):
         tema = get_cell(marta_row, MARTA_COL["Tema"])
         guion = get_cell(marta_row, MARTA_COL["Guion"])
+        notas_escenas = get_cell(marta_row, MARTA_COL["Notas_escenas"])
         estado_proceso = get_cell(marta_row, MARTA_COL["Estado_proceso"])
 
         if not tema or not guion:
@@ -133,6 +135,7 @@ def main() -> None:
         pipeline_row[COL["Fecha_deseada"] - 1] = get_cell(marta_row, MARTA_COL["Fecha_deseada"])
         pipeline_row[COL["Estado"] - 1]        = "Generando vídeo"
         pipeline_row[COL["Guion"] - 1]         = guion
+        pipeline_row[COL["Notas_escenas"] - 1] = notas_escenas
 
         # Calcula el número de fila ANTES de añadir (get_all_values incluye cabecera)
         nueva_fila = len(ws_pipeline.get_all_values()) + 1
@@ -149,6 +152,7 @@ def main() -> None:
             "look_id": get_cell(marta_row, MARTA_COL["Look_ID"]),
             "fecha_deseada": get_cell(marta_row, MARTA_COL["Fecha_deseada"]),
             "guion": guion,
+            "notas_escenas": notas_escenas,
         })
 
     logger.info("%d fila(s) inyectadas en el pipeline.", len(output))
