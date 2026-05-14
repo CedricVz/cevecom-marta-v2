@@ -116,7 +116,7 @@ def construir_caption(item: dict) -> str:
 def _meta_get(endpoint: str, **params) -> dict:
     r = requests.get(
         f"{META_API}/{endpoint}",
-        params={"access_token": cfg.facebook_access_token, **params},
+        params={"access_token": cfg.instagram_api_token, **params},
         timeout=30,
     )
     r.raise_for_status()
@@ -129,7 +129,7 @@ def _meta_get(endpoint: str, **params) -> dict:
 def _meta_post(endpoint: str, **params) -> dict:
     r = requests.post(
         f"{META_API}/{endpoint}",
-        params={"access_token": cfg.facebook_access_token, **params},
+        params={"access_token": cfg.instagram_api_token, **params},
         timeout=30,
     )
     r.raise_for_status()
