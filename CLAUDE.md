@@ -291,3 +291,17 @@ Debug local: python tools/dm_responder.py + ngrok http 5000
 3. **Activación del automatismo** una vez validados los dos primeros: el cron de Railway publica los `Aprobados` los lunes a las 10:00 UTC. El pipeline (`leer_calendario_drive → generar_video → enviar_aprobacion`) se sigue ejecutando manualmente; cron solo se encarga de `publicar_instagram.py`.
 
 Módulo 2 sigue vivo respondiendo DMs en producción sin intervención.
+
+---
+
+## ⚠️ Bloqueante conocido — `crear_video_heygen_mcp` (mayo 2026)
+
+`tools/generar_video.py::crear_video_heygen_mcp` no consigue invocar `create_video_agent` con el `prompt` completo cuando lo delega vía `client.beta.messages.create` con `mcp_servers=[...heygen...]`. Claude Haiku dropea el argumento `prompt` del tool_use (verificado en un smoke test: `BetaMCPToolUseBlock` con `input={mode, orientation, avatarId, voiceId, brandKitId}` y SIN `prompt`). Resultado: `RuntimeError("No se pudo extraer session_id")` y la fila queda con `Estado="Error"`.
+
+**Workaround usado para el Reel de lanzamiento**: llamada manual al MCP `create_video_agent` desde Claude Code con los mismos parámetros y el agent_prompt completo (~2.700 chars). Funciona — devuelve `session_id` y `video_id` al instante.
+
+**Fix pendiente antes de activar el pipeline automático (Opción B)**: reescribir `crear_video_heygen_mcp` para una de estas dos vías:
+- **(B1)** Forzar `tool_choice={"type": "tool", "name": "create_video_agent"}` en la llamada a Anthropic, con los args como un dict estructurado (no embebidos en lenguaje natural). Verificar que Haiku ya no dropea `prompt`.
+- **(B2)** Saltar Anthropic y llamar al endpoint HTTP del MCP de HeyGen directamente con el token OAuth (`Path.home()/".claude/.credentials.json"`). Es más robusto y elimina la dependencia de la API de Claude para una llamada determinista.
+
+Hasta que esto se arregle, NO ejecutar `python tools/leer_calendario_drive.py | python tools/generar_video.py | python tools/enviar_aprobacion.py` — el segundo paso fallará en todas las filas. El cron de los lunes (`publicar_instagram.py`) sí puede correr porque publica filas ya aprobadas; no depende de este flujo.
