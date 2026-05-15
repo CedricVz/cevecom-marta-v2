@@ -26,8 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import anthropic as anthropic_sdk
 import gspread
+import requests
 from gspread.utils import rowcol_to_a1
 
 from config import cfg
@@ -135,10 +135,54 @@ def _asset_url_para_tratamiento(titulo: str) -> str:
     return ASSET_URLS["default"]
 
 
-def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> tuple[str, str]:
-    """Crea el vídeo via Video Agent MCP (~6 créditos, créditos plan web) y devuelve (video_id, session_id)."""
+def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int = 60) -> dict:
+    """Invoca una tool del MCP de HeyGen via JSON-RPC sobre HTTP.
+
+    El servidor responde con SSE (`event: message\\ndata: <jsonrpc_envelope>`).
+    Devuelve el dict resultado de parsear `result.content[0].text` (string JSON).
+    Lanza RuntimeError si la tool reporta isError o si hay JSON-RPC `error`.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": tool_name,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }
+    r = requests.post(HEYGEN_MCP_URL, headers=headers, json=payload, timeout=timeout)
+    r.raise_for_status()
+    data_line = next(
+        (line[len("data: "):] for line in r.text.splitlines() if line.startswith("data: ")),
+        None,
+    )
+    if not data_line:
+        raise RuntimeError(f"Respuesta MCP sin línea `data:`: {r.text!r}")
+    envelope = json.loads(data_line)
+    if "error" in envelope:
+        raise RuntimeError(f"MCP {tool_name} JSON-RPC error: {envelope['error']}")
+    result = envelope.get("result", {})
+    if result.get("isError"):
+        raise RuntimeError(f"MCP {tool_name} isError=True: {result}")
+    content = result.get("content") or []
+    if not content or "text" not in content[0]:
+        raise RuntimeError(f"MCP {tool_name} sin content[0].text: {result}")
+    try:
+        return json.loads(content[0]["text"])
+    except json.JSONDecodeError:
+        return {"text": content[0]["text"]}
+
+
+def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> str:
+    """Crea el vídeo via Video Agent MCP (~6 créditos, plan web) y devuelve session_id.
+
+    El video_id no está disponible al crear — se obtiene al final del polling
+    en `esperar_video_heygen_mcp` (que también devuelve la URL).
+    """
     token = _leer_token_oauth_heygen()
-    client = anthropic_sdk.Anthropic(api_key=cfg.anthropic_api_key)
     asset_url = _asset_url_para_tratamiento(titulo)
     scene_direction = (
         f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
@@ -171,88 +215,50 @@ def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> 
         f"{scene_direction}"
         f"Speak EXACTLY this script word for word:\n\n{texto}"
     )
-    prompt = (
-        f'Use the HeyGen tool create_video_agent with: '
-        f'mode="generate", orientation="portrait", '
-        f'avatarId="{HEYGEN_LOOK_ID}", voiceId="{VOICE_ID}", '
-        f'brandKitId="{BRAND_KIT_ID}", '
-        f'prompt="{agent_prompt.replace(chr(34), chr(39))}". '
-        f'CRITICAL: orientation must be portrait 9:16 vertical. '
-        f'Reply ONLY with JSON: {{"session_id": "<id>", "video_id": "<id>"}}'
-    )
-    response = client.beta.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        mcp_servers=[{"type": "url", "url": HEYGEN_MCP_URL, "name": "heygen",
-                      "authorization_token": token}],
-        messages=[{"role": "user", "content": prompt}],
-        betas=["mcp-client-2025-04-04"],
-    )
-    # Buscar session_id y video_id en todos los bloques de la respuesta MCP
-    haystack = ""
-    for block in response.content:
-        if hasattr(block, "text"):
-            haystack += block.text + "\n"
-        elif hasattr(block, "content") and isinstance(block.content, list):
-            for sub in block.content:
-                if hasattr(sub, "text"):
-                    haystack += sub.text + "\n"
-
-    session_match = re.search(r'"session_id"\s*:\s*"([^"]+)"', haystack)
-    if not session_match:
-        raise RuntimeError(f"No se pudo extraer session_id. Bloques MCP: {response.content}")
-    session_id = session_match.group(1)
-
-    match = re.search(r'"video_id"\s*:\s*"([^"]+)"', haystack)
-    if not match:
-        raise RuntimeError(f"No se pudo extraer video_id. Bloques MCP: {response.content}")
-    return match.group(1), session_id
+    result = _llamar_mcp_heygen("create_video_agent", {
+        "mode": "generate",
+        "orientation": "portrait",
+        "avatarId": HEYGEN_LOOK_ID,
+        "voiceId": VOICE_ID,
+        "brandKitId": BRAND_KIT_ID,
+        "prompt": agent_prompt,
+    }, token, timeout=120)
+    session_id = result.get("session_id")
+    if not session_id:
+        raise RuntimeError(f"create_video_agent sin session_id: {result}")
+    return session_id
 
 
-def esperar_video_heygen_mcp(session_id: str) -> str:
-    """Espera a que el vídeo esté listo via MCP polling y devuelve la URL de descarga."""
+def esperar_video_heygen_mcp(session_id: str) -> tuple[str, str]:
+    """Polling de la Video Agent session hasta status=completed.
+
+    Devuelve `(video_url, video_id)`. La URL viene del MCP tool `get_video`
+    (paso separado tras detectar completed), no de `get_video_agent_session`.
+    """
     token = _leer_token_oauth_heygen()
-    client = anthropic_sdk.Anthropic(api_key=cfg.anthropic_api_key)
     transcurrido = 0
 
     while transcurrido < POLL_TIMEOUT:
-        prompt = (
-            f'Call get_video_agent_session with session_id="{session_id}". '
-            f'Reply with ONLY a JSON object: '
-            f'{{"status": "<status>", "video_url": "<url_or_empty_string>"}}'
-        )
-        response = client.beta.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            mcp_servers=[{"type": "url", "url": HEYGEN_MCP_URL, "name": "heygen",
-                          "authorization_token": token}],
-            messages=[{"role": "user", "content": prompt}],
-            betas=["mcp-client-2025-04-04"],
-        )
-
-        haystack = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                haystack += block.text + "\n"
-            elif hasattr(block, "content") and isinstance(block.content, list):
-                for sub in block.content:
-                    if hasattr(sub, "text"):
-                        haystack += sub.text + "\n"
-
-        status_match = re.search(r'"status"\s*:\s*"([^"]+)"', haystack)
-        estado = status_match.group(1) if status_match else ""
-
-        logger.info("session_id=%s → %s (%ds)", session_id, estado, transcurrido)
+        session = _llamar_mcp_heygen("get_video_agent_session",
+                                     {"session_id": session_id},
+                                     token, timeout=30)
+        estado = session.get("status", "")
+        video_id = session.get("video_id", "")
+        progress = session.get("progress")
+        logger.info("session_id=%s status=%s progress=%s video_id=%s (%ds)",
+                    session_id, estado, progress, video_id, transcurrido)
 
         if estado == "completed":
-            url_match = re.search(r'"video_url"\s*:\s*"([^"]+)"', haystack)
-            if url_match:
-                return url_match.group(1)
-            raise RuntimeError(
-                f"Session completada pero sin video_url. Respuesta: {haystack}"
-            )
+            if not video_id:
+                raise RuntimeError(f"Session completada pero sin video_id: {session}")
+            video = _llamar_mcp_heygen("get_video", {"video_id": video_id},
+                                       token, timeout=30)
+            video_url = video.get("video_url")
+            if not video_url:
+                raise RuntimeError(f"get_video sin video_url: {video}")
+            return video_url, video_id
         if estado in ("failed", "error"):
-            raise RuntimeError(f"HeyGen falló: status={estado}. Respuesta: {haystack}")
+            raise RuntimeError(f"HeyGen falló: status={estado}. session={session}")
 
         time.sleep(POLL_INTERVALO)
         transcurrido += POLL_INTERVALO
@@ -302,17 +308,18 @@ def main() -> None:
         try:
             texto = extraer_texto_hablado(item["guion"])
 
-            video_id, session_id = crear_video_heygen_mcp(
+            session_id = crear_video_heygen_mcp(
                 texto, item["tema"], notas_escenas=item.get("notas_escenas", "")
             )
-            # Guarda el ID inmediatamente: si el proceso falla durante el polling
-            # se puede retomar sabiendo qué job ya fue enviado.
-            actualizar_fila(hoja, fila, {"ID_heygen": video_id})
-            logger.info("Fila %d: job enviado — video_id=%s session_id=%s", fila, video_id, session_id)
+            # Guarda session_id inmediatamente: si el proceso falla durante el
+            # polling se puede retomar el job que ya consumió créditos.
+            actualizar_fila(hoja, fila, {"ID_heygen": session_id})
+            logger.info("Fila %d: job enviado — session_id=%s", fila, session_id)
 
-            video_url = esperar_video_heygen_mcp(session_id)
+            video_url, video_id = esperar_video_heygen_mcp(session_id)
 
             actualizar_fila(hoja, fila, {
+                "ID_heygen": video_id,
                 "Video_preview": video_url,
                 "Estado": "Pendiente aprobación",
                 "Errores": "",

@@ -240,8 +240,8 @@ cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar
   Debe ejecutarse desde Claude Code. Si el token expira, lanza un error claro con instrucciones.
 - **Dependencias**: todas en `requirements.txt`. Para dev local: `pip install -r requirements.txt`.
 - **Deploy Railway**: definido en `railway.toml` (builder NIXPACKS, healthcheck
-  `/healthz`, cron de publicación semanal `0 10 * * 1`) + `Procfile`
-  (gunicorn 2 workers 4 threads). Trigger: push a `main` → redeploy automático.
+  `/healthz`, dos crons: generación `0 8 * * 1` y publicación `0 10 * * 1,3,5`)
+  + `Procfile` (gunicorn 2 workers 4 threads). Trigger: push a `main` → redeploy automático.
 - **Meta Graph API — versión**: `publicar_instagram.py` y `dm_responder.py` usan
   `graph.instagram.com/v25.0` en todos los endpoints.
 - **System User Meta**: `CEVECOM Marta Reels` (ID: `61589023863845`) — tiene acceso
@@ -257,7 +257,7 @@ cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar
   → Columnas A-H: Tema, Tratamiento, Audiencia, Tono, Look_ID, Fecha_deseada, Guion, Notas_escenas
   → Deja columna I (Estado_proceso) en blanco
 
-[Pipeline — cuando Marta ha rellenado sus filas]
+[Pipeline — manual o cron Railway los lunes 8:00 UTC]
 cmd /c "python tools\leer_calendario_drive.py | python tools\generar_video.py | python tools\enviar_aprobacion.py"
   → Copia filas al Pipeline, genera vídeo HeyGen (~6 créditos, 5-10 min), envía email a Marta
 
@@ -266,7 +266,7 @@ cmd /c "python tools\leer_calendario_drive.py | python tools\generar_video.py | 
 
 [Publicación]
 python tools/publicar_instagram.py
-  → También se ejecuta automáticamente desde el cron de Railway los lunes a las 10:00 UTC
+  → También se ejecuta automáticamente desde el cron de Railway L/M/V a las 10:00 UTC
 
 [Servidor de DMs — Railway en producción (siempre activo, sin acción manual)]
 URL pública: https://cevecom-marta-v2-production.up.railway.app
@@ -288,20 +288,6 @@ Debug local: python tools/dm_responder.py + ngrok http 5000
 
 2. **Lanzamiento manual** de los Reels 1 y 2 del calendario con aprobación de Marta vía email. QA visual end-to-end antes de seguir.
 
-3. **Activación del automatismo** una vez validados los dos primeros: el cron de Railway publica los `Aprobados` los lunes a las 10:00 UTC. El pipeline (`leer_calendario_drive → generar_video → enviar_aprobacion`) se sigue ejecutando manualmente; cron solo se encarga de `publicar_instagram.py`.
+3. **Activación del automatismo** una vez validados los dos primeros: dos crons en Railway — generación los lunes 8:00 UTC (`leer_calendario_drive | generar_video | enviar_aprobacion`) y publicación L/M/V 10:00 UTC (`publicar_instagram.py`).
 
 Módulo 2 sigue vivo respondiendo DMs en producción sin intervención.
-
----
-
-## ⚠️ Bloqueante conocido — `crear_video_heygen_mcp` (mayo 2026)
-
-`tools/generar_video.py::crear_video_heygen_mcp` no consigue invocar `create_video_agent` con el `prompt` completo cuando lo delega vía `client.beta.messages.create` con `mcp_servers=[...heygen...]`. Claude Haiku dropea el argumento `prompt` del tool_use (verificado en un smoke test: `BetaMCPToolUseBlock` con `input={mode, orientation, avatarId, voiceId, brandKitId}` y SIN `prompt`). Resultado: `RuntimeError("No se pudo extraer session_id")` y la fila queda con `Estado="Error"`.
-
-**Workaround usado para el Reel de lanzamiento**: llamada manual al MCP `create_video_agent` desde Claude Code con los mismos parámetros y el agent_prompt completo (~2.700 chars). Funciona — devuelve `session_id` y `video_id` al instante.
-
-**Fix pendiente antes de activar el pipeline automático (Opción B)**: reescribir `crear_video_heygen_mcp` para una de estas dos vías:
-- **(B1)** Forzar `tool_choice={"type": "tool", "name": "create_video_agent"}` en la llamada a Anthropic, con los args como un dict estructurado (no embebidos en lenguaje natural). Verificar que Haiku ya no dropea `prompt`.
-- **(B2)** Saltar Anthropic y llamar al endpoint HTTP del MCP de HeyGen directamente con el token OAuth (`Path.home()/".claude/.credentials.json"`). Es más robusto y elimina la dependencia de la API de Claude para una llamada determinista.
-
-Hasta que esto se arregle, NO ejecutar `python tools/leer_calendario_drive.py | python tools/generar_video.py | python tools/enviar_aprobacion.py` — el segundo paso fallará en todas las filas. El cron de los lunes (`publicar_instagram.py`) sí puede correr porque publica filas ya aprobadas; no depende de este flujo.

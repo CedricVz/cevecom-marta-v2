@@ -6,6 +6,10 @@ healthcheckPath = "/healthz"
 healthcheckTimeout = 10
 restartPolicyType = "ON_FAILURE"
 
+[cron."generar-reels"]
+schedule = "0 8 * * 1"
+command = "python tools/leer_calendario_drive.py | python tools/generar_video.py | python tools/enviar_aprobacion.py"
+
 [cron."publicar-reels"]
-schedule = "0 10 * * 1"
+schedule = "0 10 * * 1,3,5"
 command = "python tools/publicar_instagram.py"
