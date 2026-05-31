@@ -24,6 +24,7 @@ import unicodedata
 import argparse
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -290,6 +291,26 @@ def _bloque_broll_assets(assets: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _drive_url_descarga(url: str) -> str:
+    match = re.search(r"/file/d/([^/]+)/", url)
+    if match:
+        return f"https://drive.google.com/uc?export=download&id={match.group(1)}"
+
+    parsed = urlparse(url)
+    file_id = parse_qs(parsed.query).get("id", [""])[0]
+    if "drive.google.com" in parsed.netloc and file_id:
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    return url
+
+
+def _files_para_video_agent(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {"type": "url", "url": _drive_url_descarga(asset["url"])}
+        for asset in assets
+    ]
+
+
 def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int = 60) -> dict:
     """Invoca una tool del MCP de HeyGen via JSON-RPC sobre HTTP.
 
@@ -346,6 +367,7 @@ def crear_video_heygen_mcp(
     item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
     broll_assets = _seleccionar_broll(item_context)
     broll_block = _bloque_broll_assets(broll_assets)
+    broll_files = _files_para_video_agent(broll_assets)
     scene_direction = (
         f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
         if notas_escenas else ""
@@ -384,6 +406,7 @@ def crear_video_heygen_mcp(
         "avatarId": HEYGEN_LOOK_ID,
         "voiceId": VOICE_ID,
         "brandKitId": BRAND_KIT_ID,
+        "files": broll_files,
         "prompt": agent_prompt,
     }, token, timeout=120)
     session_id = result.get("session_id")
@@ -464,6 +487,7 @@ def main() -> None:
                 "marta_fila": item.get("marta_fila"),
                 "tema": item.get("tema"),
                 "broll_assets": _seleccionar_broll(item),
+                "files_payload": _files_para_video_agent(_seleccionar_broll(item)),
             }
             for item in guiones
         ]
