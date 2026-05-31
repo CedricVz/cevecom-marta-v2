@@ -170,7 +170,7 @@ ASSET_CATALOG = [
     },
 ]
 
-POLL_INTERVALO = 15    # segundos entre checks de estado
+POLL_INTERVALO = 60    # segundos entre checks de estado
 POLL_TIMEOUT   = 900   # 15 minutos máximo por vídeo
 
 
