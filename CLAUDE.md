@@ -158,6 +158,9 @@ Variables clave para el pipeline v3:
 - `GOOGLE_SHEETS_ID` — spreadsheet del sistema (Sheet1 = pipeline)
 - `CALENDARIO_MARTA_SHEETS_ID` — spreadsheet de Marta ("Calendario de Contenidos")
 - `GOOGLE_CREDENTIALS_PATH` — ruta al JSON de la service account (modo local)
+- `HEYGEN_API_KEY` — configurada para referencia/API, pero **no usar para generar**
+  mientras no haya saldo API. El acuerdo operativo actual es consumir créditos del
+  plan web mediante HeyGen MCP/OAuth.
 
 Variables exclusivas de Railway (producción):
 - `GOOGLE_CREDENTIALS_JSON` — contenido completo del JSON de service account en
@@ -172,6 +175,13 @@ Variables exclusivas de Railway (producción):
 
 **HeyGen — IDs y assets** (validados mayo 2026 — ver memoria `project_heygen_assets.md` para inventario completo del avatar group):
 - **Look ID** (avatar usado en producción): `97175217da0f41edb57bd1aecd543792` — Photo Avatar (fuente landscape, portrait forzado por prompt)
+- **Nuevo Avatar Group ID** (validado por MCP 31/05/2026): `c883742834f8475e87884144f86f1946`
+- **Nuevo Look ID** (candidato para próximos Reels, validado por MCP 31/05/2026):
+  `5b39fad8d2254dd8aee6cf6b3f651ac5` — Photo Avatar, `status=completed`,
+  `preferred_orientation=portrait`, 941×1672, engines `avatar_v` / `avatar_iv`
+- **Nuevo default_voice_id** del look validado:
+  `9d5fa6634a3a49c0bd9e47ec89a33dce` — pendiente decidir si usar esta voz
+  o mantener la voz anterior validada
 - **Voice ID**: `dd40b7a452d34eb69c43f8ccc69800b2` — voz nativa del avatar
 - **Brand Kit ID**: `bf6988fde35849079d09f9a6fa5b092d` — "Marta Suñé"
 - **Avatar Group ID**: `5aacc60647784288ab1e92e0b269d639` (4 looks; 2 digital twins portrait sin uso disponibles si hay que migrar)
@@ -180,6 +190,9 @@ Variables exclusivas de Railway (producción):
 - **Coste**: ~6 créditos del plan web por vídeo (Video Agent)
 - **REST API v2**: devuelve 403 — el plan de HeyGen no incluye acceso REST a generación
 - **Pipeline MCP**: `create_video_agent` con `mode="generate"` + polling vía `get_video_agent_session`
+- **No migrar a API v3 directa todavía**: aunque HeyGen v3 permite `POST /v3/video-agents`
+  con API key, ese camino consume saldo del API dashboard, no créditos de subscripción.
+  Mantener MCP/OAuth para cumplir el acuerdo mensual de 12 Reels con créditos del plan web.
 
 **Identidad de marca inyectada al `agent_prompt`** (constantes en `tools/generar_video.py`):
 - `BRAND_COLORS = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"`
@@ -278,16 +291,29 @@ Debug local: python tools/dm_responder.py + ngrok http 5000
 
 ## Próximo paso
 
-**Módulo 1 — primer health check del pipeline** (siguiente sesión):
+**Módulo 1 — estado real verificado el 31/05/2026**
 
-1. **Smoke test** con el Reel de lanzamiento (sin tocar el calendario de Marta):
-   ```
-   cmd /c "type una_fila.json | python tools\generar_video.py | python tools\enviar_aprobacion.py"
-   ```
-   Verificar en HeyGen Video Agent: orientación 9:16, B-roll del Drive intercalado, brand kit aplicado, scene direction respetada.
+Sheet1 contiene 2 vídeos ya generados y con email de aprobación enviado:
 
-2. **Lanzamiento manual** de los Reels 1 y 2 del calendario con aprobación de Marta vía email. QA visual end-to-end antes de seguir.
+1. Fila 2 — Reel de lanzamiento: `Estado="Pendiente aprobación"`, `Video_preview` y
+   `ID_heygen` presentes, `Email_enviado=2026-05-15 00:58`, sin decisión/publicación.
+2. Fila 3 — Celulitis / Maderoterapia: `Estado="Pendiente aprobación"`,
+   `Video_preview` y `ID_heygen` presentes, `Email_enviado=2026-05-15 05:32`,
+   sin decisión/publicación.
 
-3. **Activación del automatismo** una vez validados los dos primeros: dos crons en Railway — generación los lunes 8:00 UTC (`leer_calendario_drive | generar_video | enviar_aprobacion`) y publicación L/M/V 10:00 UTC (`publicar_instagram.py`).
+Los `Video_preview` son URLs firmadas de HeyGen y ya caducaron (21-22/05/2026).
+No reenviar emails de aprobación por ahora.
+
+**Antes de generar más vídeos:**
+
+1. Decidir si los próximos Reels usan el nuevo look portrait
+   `5b39fad8d2254dd8aee6cf6b3f651ac5` y su voz por defecto
+   `9d5fa6634a3a49c0bd9e47ec89a33dce`, o si se mantiene la voz anterior
+   `dd40b7a452d34eb69c43f8ccc69800b2`.
+2. Actualizar `tools/generar_video.py` con el Look ID/Voice ID elegidos.
+3. Revisar `Guiones_Marta`: hay filas con `Estado_proceso="Pendiente"` que el script
+   actual saltaría, y varias filas vacías en `Estado_proceso` que sí se procesarían.
+4. No ejecutar el pipeline completo sin seleccionar explícitamente qué filas generar:
+   ahora podría procesar varias filas y consumir muchos créditos HeyGen.
 
 Módulo 2 sigue vivo respondiendo DMs en producción sin intervención.

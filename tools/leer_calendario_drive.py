@@ -12,9 +12,12 @@ Prerrequisito: la pestaña "Guiones_Marta" debe existir en CALENDARIO_MARTA_SHEE
 
 Uso:
   python tools/leer_calendario_drive.py
+  python tools/leer_calendario_drive.py --limit 3
+  python tools/leer_calendario_drive.py --marta-row 8 --dry-run
   cmd /c "python tools\\leer_calendario_drive.py | python tools\\generar_video.py | python tools\\enviar_aprobacion.py"
 """
 
+import argparse
 import json
 import logging
 import sys
@@ -58,6 +61,35 @@ def get_cell(row: list, col: int) -> str:
     return row[idx].strip() if idx < len(row) else ""
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Lee Guiones_Marta e inyecta filas seleccionadas en Sheet1."
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Máximo de filas de Marta a procesar (ej: 3 para el cron semanal).",
+    )
+    parser.add_argument(
+        "--marta-row",
+        type=int,
+        default=None,
+        help="Procesa solo una fila concreta de Guiones_Marta (número real de fila).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Muestra el JSON que se procesaría sin escribir en ninguna hoja.",
+    )
+    args = parser.parse_args()
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit debe ser mayor o igual que 1")
+    if args.marta_row is not None and args.marta_row < 3:
+        parser.error("--marta-row debe ser 3 o mayor (fila 1=cabeceras, fila 2=instrucciones)")
+    return args
+
+
 def conectar() -> tuple[gspread.Worksheet, gspread.Worksheet]:
     if not cfg.calendario_marta_sheets_id:
         logger.error(
@@ -88,6 +120,8 @@ def conectar() -> tuple[gspread.Worksheet, gspread.Worksheet]:
 
 
 def main() -> None:
+    args = parse_args()
+
     try:
         ws_marta, ws_pipeline = conectar()
     except gspread.exceptions.SpreadsheetNotFound as e:
@@ -110,9 +144,14 @@ def main() -> None:
 
     output = []
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    pipeline_row_count = len(ws_pipeline.get_all_values())
+    seleccionadas = 0
 
     # Fila 1 = cabeceras, fila 2 = instrucciones — datos desde fila 3
     for i, marta_row in enumerate(todas[2:], start=3):
+        if args.marta_row is not None and i != args.marta_row:
+            continue
+
         tema = get_cell(marta_row, MARTA_COL["Tema"])
         guion = get_cell(marta_row, MARTA_COL["Guion"])
         notas_escenas = get_cell(marta_row, MARTA_COL["Notas_escenas"])
@@ -123,7 +162,11 @@ def main() -> None:
         if estado_proceso:
             continue  # ya procesada en ejecuciones anteriores
 
-        logger.info("Fila %d (Marta) → inyectando en pipeline: %s", i, tema)
+        if args.limit is not None and seleccionadas >= args.limit:
+            continue
+
+        accion = "simulando" if args.dry_run else "inyectando en pipeline"
+        logger.info("Fila %d (Marta) → %s: %s", i, accion, tema)
 
         # Construye la fila completa del Pipeline (mismo orden que CABECERAS / Sheet1)
         pipeline_row = [""] * len(CABECERAS)
@@ -138,13 +181,15 @@ def main() -> None:
         pipeline_row[COL["Notas_escenas"] - 1] = notas_escenas
 
         # Calcula el número de fila ANTES de añadir (get_all_values incluye cabecera)
-        nueva_fila = len(ws_pipeline.get_all_values()) + 1
+        nueva_fila = pipeline_row_count + seleccionadas + 1
 
-        ws_pipeline.append_row(pipeline_row, value_input_option="RAW")
-        ws_marta.update_cell(i, MARTA_COL["Estado_proceso"], f"Procesado ✓ {ts}")
+        if not args.dry_run:
+            ws_pipeline.append_row(pipeline_row, value_input_option="RAW")
+            ws_marta.update_cell(i, MARTA_COL["Estado_proceso"], f"Procesado ✓ {ts}")
 
         output.append({
             "fila": nueva_fila,
+            "marta_fila": i,
             "tema": tema,
             "tratamiento": get_cell(marta_row, MARTA_COL["Tratamiento"]),
             "audiencia": get_cell(marta_row, MARTA_COL["Audiencia"]),
@@ -154,8 +199,12 @@ def main() -> None:
             "guion": guion,
             "notas_escenas": notas_escenas,
         })
+        seleccionadas += 1
 
-    logger.info("%d fila(s) inyectadas en el pipeline.", len(output))
+    if args.dry_run:
+        logger.info("%d fila(s) seleccionadas en dry-run. No se escribió en Sheets.", len(output))
+    else:
+        logger.info("%d fila(s) inyectadas en el pipeline.", len(output))
     print(json.dumps(output, ensure_ascii=False, indent=2))
 
 

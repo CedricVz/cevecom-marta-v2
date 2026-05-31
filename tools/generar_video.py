@@ -45,8 +45,8 @@ SCOPES_WRITE = [
 # ── HeyGen ───────────────────────────────────────────────────────────────────
 HEYGEN_MCP_URL = "https://mcp.heygen.com/mcp/v1/"
 
-HEYGEN_LOOK_ID = "97175217da0f41edb57bd1aecd543792"
-VOICE_ID       = "dd40b7a452d34eb69c43f8ccc69800b2"  # voz nativa del avatar
+HEYGEN_LOOK_ID = "5b39fad8d2254dd8aee6cf6b3f651ac5"  # portrait look validado por MCP
+VOICE_ID       = "9d5fa6634a3a49c0bd9e47ec89a33dce"  # default_voice_id del nuevo look
 BRAND_COLORS   = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"
 CENTRO_DIR     = "C/ Munné 15-17 bajos, Barcelona"
 BRAND_KIT_ID   = "bf6988fde35849079d09f9a6fa5b092d"
