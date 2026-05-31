@@ -109,17 +109,22 @@ ASSET_CATALOG = [
     {
         "label": "aplicar crema facial",
         "url": "https://drive.google.com/file/d/1YddOcZLToTJb18nn5sZBLxiKvtsFk2Pl/view",
-        "keywords": ["aplicar crema", "crema facial"],
+        "keywords": ["aplicar crema", "crema facial", "video facial", "facial"],
     },
     {
         "label": "masaje facial",
         "url": "https://drive.google.com/file/d/1rUU2QvUfWeBiy6WeL-GKcFDY3GtyQT2G/view",
-        "keywords": ["masaje facial"],
+        "keywords": ["masaje facial", "video facial", "facial"],
     },
     {
         "label": "radiofrecuencia facial",
         "url": "https://drive.google.com/file/d/1raaXNG8JGjHVCMPy6GA259tWbEi6iSpY/view",
         "keywords": ["radiofrecuencia", "reafirmar", "colageno", "colágeno"],
+    },
+    {
+        "label": "laser",
+        "url": "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
+        "keywords": ["laser", "láser", "depilacion", "depilación"],
     },
     # Corporales
     {
@@ -247,7 +252,7 @@ def _normalizar(s: str) -> str:
     return re.sub(r"\s+", " ", sin_acentos).strip()
 
 
-def _seleccionar_broll(item: dict, max_assets: int = 8) -> list[dict[str, str]]:
+def _seleccionar_broll(item: dict, max_assets: int = 12) -> list[dict[str, str]]:
     texto_busqueda = _normalizar(" ".join([
         item.get("tema", ""),
         item.get("tratamiento", ""),
