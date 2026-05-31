@@ -21,6 +21,7 @@ import re
 import sys
 import time
 import unicodedata
+import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -66,8 +67,115 @@ ASSET_URLS = {
     "default":             "https://drive.google.com/file/d/1vfjVics-_7SlWhvymHVnq1oRrcP5hroM/view"
 }
 
+ASSET_CATALOG = [
+    # Citas / salón / ambiente
+    {
+        "label": "clienta cancelando cita",
+        "url": "https://drive.google.com/file/d/1PQBac_pV9G-Jug7aD-Tv4df3iVd8oZpW/view",
+        "keywords": ["cita", "cancelar", "cancelando", "agenda", "avisar", "reloj", "tiempo"],
+    },
+    {
+        "label": "silla vacía del salón",
+        "url": "https://drive.google.com/file/d/1SLAD4rzNzd2oqvSzrA6lsDK8gD8cke0s/view",
+        "keywords": ["silla", "vacia", "vacía", "espacio vacio", "hora perdida"],
+    },
+    {
+        "label": "clienta entrando al salón",
+        "url": "https://drive.google.com/file/d/13I16KJWvzad5A-k2qDE9XOSn4QW6gr6W/view",
+        "keywords": ["clienta entrando", "entrando", "entrada", "venir", "salon", "salón"],
+    },
+    {
+        "label": "entrada del salón",
+        "url": "https://drive.google.com/file/d/1WZsW22s1sCsD3w_MDUcdkK58dE3nkUM-/view",
+        "keywords": ["entrada", "salon", "salón", "centro", "local"],
+    },
+    {
+        "label": "cabina estética facial",
+        "url": "https://drive.google.com/file/d/110uc_-p2PTj3b2Mo4vbUK6ed6K7iGmkw/view",
+        "keywords": ["cabina estetica", "cabina estética", "cabina facial"],
+    },
+    # Tratamientos faciales / producto
+    {
+        "label": "producto botox",
+        "url": "https://drive.google.com/file/d/1Y9kua_KV130j8PKtdNcKsHOMi7cJyoQc/view",
+        "keywords": ["producto botox", "botox", "producto"],
+    },
+    {
+        "label": "tratamiento botox",
+        "url": "https://drive.google.com/file/d/14hVIlEiPdpOTXCerhVaTjKFpgpryjy45/view",
+        "keywords": ["tratamiento botox", "botox capilar", "botox"],
+    },
+    {
+        "label": "aplicar crema facial",
+        "url": "https://drive.google.com/file/d/1YddOcZLToTJb18nn5sZBLxiKvtsFk2Pl/view",
+        "keywords": ["aplicar crema", "crema facial"],
+    },
+    {
+        "label": "masaje facial",
+        "url": "https://drive.google.com/file/d/1rUU2QvUfWeBiy6WeL-GKcFDY3GtyQT2G/view",
+        "keywords": ["masaje facial"],
+    },
+    {
+        "label": "radiofrecuencia facial",
+        "url": "https://drive.google.com/file/d/1raaXNG8JGjHVCMPy6GA259tWbEi6iSpY/view",
+        "keywords": ["radiofrecuencia", "reafirmar", "colageno", "colágeno"],
+    },
+    # Corporales
+    {
+        "label": "drenaje abdomen",
+        "url": "https://drive.google.com/file/d/1W7vG3qxAxnyPPSJr-ZPsUDQNvCmImkqC/view",
+        "keywords": ["drenaje", "abdomen", "retencion", "retención", "linfatico", "linfático"],
+    },
+    {
+        "label": "maderoterapia en camilla",
+        "url": "https://drive.google.com/file/d/1zZqBq18SgdEm0JWRMPwWcibEAzk0Q5AV/view",
+        "keywords": ["maderoterapia", "madero", "rodillos", "celulitis"],
+    },
+    {
+        "label": "maderoterapia glúteos",
+        "url": "https://drive.google.com/file/d/1GUDCL6Zskts3iwZiKlgBPfGl41RIhcVr/view",
+        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "celulitis"],
+    },
+    {
+        "label": "HIFU",
+        "url": "https://drive.google.com/file/d/1DvvUopYnnrecarQioNUHNyv0s4GELrye/view",
+        "keywords": ["hifu", "hyfu", "reafirmar", "flacidez"],
+    },
+    {
+        "label": "HIFU brazos",
+        "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
+        "keywords": ["hifu", "hyfu", "brazos", "flacidez"],
+    },
+    # Pelo
+    {
+        "label": "lavar cabeza",
+        "url": "https://drive.google.com/file/d/1Ka9_0u49GaVL5rSl-qz-_xtg_czZBVeL/view",
+        "keywords": ["lavar cabeza", "champu", "champú", "cabello", "pelo"],
+    },
+    {
+        "label": "video keratina",
+        "url": "https://drive.google.com/file/d/1Ukn_EzIKxAtez_mV0xkLBjoj9g5Kmi-8/view",
+        "keywords": ["keratina", "cabello", "pelo"],
+    },
+    {
+        "label": "balayage",
+        "url": "https://drive.google.com/file/d/191Lq8QKnfPaYusoWyc6AG9kQv1duD8_T/view",
+        "keywords": ["balayage", "babylights", "rubio", "color", "pelo", "cabello"],
+    },
+]
+
 POLL_INTERVALO = 15    # segundos entre checks de estado
 POLL_TIMEOUT   = 900   # 15 minutos máximo por vídeo
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Genera vídeos en HeyGen desde JSON por stdin.")
+    parser.add_argument(
+        "--dry-run-assets",
+        action="store_true",
+        help="Solo muestra qué B-roll seleccionaría para cada item; no llama a HeyGen ni Sheets.",
+    )
+    return parser.parse_args()
 
 
 def conectar_sheets() -> gspread.Worksheet:
@@ -123,16 +231,63 @@ def _leer_token_oauth_heygen() -> str:
 
 
 def _asset_url_para_tratamiento(titulo: str) -> str:
-    def quitar_acentos(s):
-        return ''.join(
-            c for c in unicodedata.normalize('NFD', s)
-            if unicodedata.category(c) != 'Mn'
-        )
-    t = quitar_acentos(titulo.lower())
+    t = _normalizar(titulo)
     for key in ASSET_URLS:
-        if quitar_acentos(key) in t:
+        if _normalizar(key) in t:
             return ASSET_URLS[key]
     return ASSET_URLS["default"]
+
+
+def _normalizar(s: str) -> str:
+    sin_acentos = ''.join(
+        c for c in unicodedata.normalize('NFD', s.lower())
+        if unicodedata.category(c) != 'Mn'
+    )
+    return re.sub(r"\s+", " ", sin_acentos).strip()
+
+
+def _seleccionar_broll(item: dict, max_assets: int = 8) -> list[dict[str, str]]:
+    texto_busqueda = _normalizar(" ".join([
+        item.get("tema", ""),
+        item.get("tratamiento", ""),
+        item.get("audiencia", ""),
+        item.get("notas_escenas", ""),
+    ]))
+    candidatos = []
+    vistos = set()
+
+    for orden, asset in enumerate(ASSET_CATALOG):
+        if asset["url"] in vistos:
+            continue
+        coincidencias = [
+            keyword for keyword in asset["keywords"]
+            if _normalizar(keyword) in texto_busqueda
+        ]
+        if coincidencias:
+            candidatos.append((len(coincidencias), orden, asset))
+            vistos.add(asset["url"])
+
+    candidatos.sort(key=lambda item: (-item[0], item[1]))
+    seleccionados = [
+        {"label": asset["label"], "url": asset["url"]}
+        for _, _, asset in candidatos[:max_assets]
+    ]
+
+    if not seleccionados:
+        seleccionados.append({
+            "label": "B-roll principal por tratamiento",
+            "url": _asset_url_para_tratamiento(item.get("tema", "")),
+        })
+    return seleccionados
+
+
+def _bloque_broll_assets(assets: list[dict[str, str]]) -> str:
+    lines = [
+        "AVAILABLE REAL B-ROLL ASSETS (use these exact clips when relevant; do not use generic stock footage):"
+    ]
+    for idx, asset in enumerate(assets, start=1):
+        lines.append(f"{idx}. {asset['label']}: {asset['url']}")
+    return "\n".join(lines)
 
 
 def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int = 60) -> dict:
@@ -176,14 +331,21 @@ def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int
         return {"text": content[0]["text"]}
 
 
-def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> str:
+def crear_video_heygen_mcp(
+    texto: str,
+    titulo: str,
+    notas_escenas: str = "",
+    broll_context: dict | None = None,
+) -> str:
     """Crea el vídeo via Video Agent MCP (~6 créditos, plan web) y devuelve session_id.
 
     El video_id no está disponible al crear — se obtiene al final del polling
     en `esperar_video_heygen_mcp` (que también devuelve la URL).
     """
     token = _leer_token_oauth_heygen()
-    asset_url = _asset_url_para_tratamiento(titulo)
+    item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
+    broll_assets = _seleccionar_broll(item_context)
+    broll_block = _bloque_broll_assets(broll_assets)
     scene_direction = (
         f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
         if notas_escenas else ""
@@ -206,9 +368,10 @@ def crear_video_heygen_mcp(texto: str, titulo: str, notas_escenas: str = "") -> 
         f"[0-3s] Avatar talking head, beauty clinic background, "
         f"warm professional lighting, portrait framing. "
         f"[3-35s] Avatar speaks script, intercut with real footage "
-        f"from the center: {asset_url} — use this as B-roll. "
-        f"Show hands-on treatment, professional equipment, "
-        f"actual clinic space. NO generic stock footage. "
+        f"from the center. {broll_block} "
+        f"Show hands-on treatment, professional equipment, actual clinic space, "
+        f"or appointment-related clips according to the scene direction. "
+        f"NO generic stock footage. "
         f"All B-roll must be portrait 9:16. "
         f"[35-45s] Avatar delivers CTA, 'Marta Suñé' branding visible. "
         f"STYLE: warm, professional, approachable. "
@@ -277,6 +440,7 @@ def _registrar_error(hoja: gspread.Worksheet, fila: int, mensaje: str) -> None:
 
 
 def main() -> None:
+    args = parse_args()
     raw = sys.stdin.read().strip()
     if not raw:
         logger.error("No se recibió JSON por stdin.")
@@ -291,6 +455,19 @@ def main() -> None:
     if not guiones:
         logger.info("0 guiones recibidos. Nada que procesar.")
         print("[]")
+        return
+
+    if args.dry_run_assets:
+        preview = [
+            {
+                "fila": item.get("fila"),
+                "marta_fila": item.get("marta_fila"),
+                "tema": item.get("tema"),
+                "broll_assets": _seleccionar_broll(item),
+            }
+            for item in guiones
+        ]
+        print(json.dumps(preview, ensure_ascii=False, indent=2))
         return
 
     try:
@@ -309,7 +486,10 @@ def main() -> None:
             texto = extraer_texto_hablado(item["guion"])
 
             session_id = crear_video_heygen_mcp(
-                texto, item["tema"], notas_escenas=item.get("notas_escenas", "")
+                texto,
+                item["tema"],
+                notas_escenas=item.get("notas_escenas", ""),
+                broll_context=item,
             )
             # Guarda session_id inmediatamente: si el proceso falla durante el
             # polling se puede retomar el job que ya consumió créditos.

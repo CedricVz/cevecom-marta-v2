@@ -14,6 +14,7 @@ Uso:
   python tools/leer_calendario_drive.py
   python tools/leer_calendario_drive.py --limit 3
   python tools/leer_calendario_drive.py --marta-row 8 --dry-run
+  python tools/leer_calendario_drive.py --marta-row 4 --force
   cmd /c "python tools\\leer_calendario_drive.py | python tools\\generar_video.py | python tools\\enviar_aprobacion.py"
 """
 
@@ -82,11 +83,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Muestra el JSON que se procesaría sin escribir en ninguna hoja.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Permite reprocesar una fila ya marcada. Solo válido con --marta-row.",
+    )
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
         parser.error("--limit debe ser mayor o igual que 1")
     if args.marta_row is not None and args.marta_row < 3:
         parser.error("--marta-row debe ser 3 o mayor (fila 1=cabeceras, fila 2=instrucciones)")
+    if args.force and args.marta_row is None:
+        parser.error("--force solo se permite junto con --marta-row")
     return args
 
 
@@ -159,8 +167,14 @@ def main() -> None:
 
         if not tema or not guion:
             continue
-        if estado_proceso:
+        if estado_proceso and not args.force:
             continue  # ya procesada en ejecuciones anteriores
+        if estado_proceso and args.force:
+            logger.warning(
+                "Fila %d (Marta) tiene Estado_proceso=%r, pero se reprocesa por --force.",
+                i,
+                estado_proceso,
+            )
 
         if args.limit is not None and seleccionadas >= args.limit:
             continue
