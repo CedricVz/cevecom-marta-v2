@@ -100,6 +100,12 @@ ASSET_CATALOG = [
         "asset_id": "bf6dad91df4f4033b53774bba285a1ee",
         "keywords": ["cabina estetica", "cabina estética", "cabina facial"],
     },
+    {
+        "label": "cabina final grande",
+        "url": "",
+        "asset_id": "ea7d5ceaaf0c42ff90269a8b803daf9f",
+        "keywords": ["cabina", "salon", "salón", "centro", "local", "ambiente"],
+    },
     # Tratamientos faciales / producto
     {
         "label": "producto botox",
@@ -126,6 +132,12 @@ ASSET_CATALOG = [
         "keywords": ["masaje facial", "video facial", "facial"],
     },
     {
+        "label": "vapor facial",
+        "url": "",
+        "asset_id": "049f8ff84b8c4296bcfe284e4007e407",
+        "keywords": ["vapor facial", "video facial", "facial", "limpieza facial"],
+    },
+    {
         "label": "radiofrecuencia facial",
         "url": "https://drive.google.com/file/d/1raaXNG8JGjHVCMPy6GA259tWbEi6iSpY/view",
         "asset_id": "cb2abb401c9547f4af6166d90e1c3629",
@@ -145,6 +157,12 @@ ASSET_CATALOG = [
         "keywords": ["drenaje", "abdomen", "retencion", "retención", "linfatico", "linfático"],
     },
     {
+        "label": "barriga inchada",
+        "url": "",
+        "asset_id": "6516ec3496e046c1bb05bf5a02c9b96f",
+        "keywords": ["barriga", "abdomen", "hinchada", "inchada", "retencion", "retención"],
+    },
+    {
         "label": "maderoterapia en camilla",
         "url": "https://drive.google.com/file/d/1zZqBq18SgdEm0JWRMPwWcibEAzk0Q5AV/view",
         "asset_id": "1e0485d62d5041ccb964d18459ed7c53",
@@ -155,6 +173,12 @@ ASSET_CATALOG = [
         "url": "https://drive.google.com/file/d/1GUDCL6Zskts3iwZiKlgBPfGl41RIhcVr/view",
         "asset_id": "ad48e5ffd889461f96798d9fe26b3256",
         "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "celulitis"],
+    },
+    {
+        "label": "maderoterapia culo",
+        "url": "",
+        "asset_id": "2e16e2de9edb4e1d891bb488ed437fe5",
+        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "culo", "celulitis"],
     },
     {
         "label": "HIFU",
