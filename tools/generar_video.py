@@ -123,7 +123,7 @@ ASSET_CATALOG = [
     },
     {
         "label": "laser",
-        "url": "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
+        "url": "https://drive.google.com/file/d/144eXxhI66cA6TnEtrDUZrrwjdBIjT0mt/view",
         "keywords": ["laser", "láser", "depilacion", "depilación"],
     },
     # Corporales
@@ -144,7 +144,7 @@ ASSET_CATALOG = [
     },
     {
         "label": "HIFU",
-        "url": "https://drive.google.com/file/d/1DvvUopYnnrecarQioNUHNyv0s4GELrye/view",
+        "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
         "keywords": ["hifu", "hyfu", "reafirmar", "flacidez"],
     },
     {
@@ -310,10 +310,35 @@ def _drive_url_descarga(url: str) -> str:
 
 
 def _files_para_video_agent(assets: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [
-        {"type": "url", "url": _drive_url_descarga(asset["url"])}
-        for asset in assets
-    ]
+    files = []
+    for asset in assets:
+        url = _drive_url_descarga(asset["url"])
+        if not _url_descarga_video_directo(url):
+            logger.warning(
+                "B-roll omitido porque Drive no entrega vídeo directo: %s (%s)",
+                asset["label"],
+                url,
+            )
+            continue
+        files.append({"type": "url", "url": url})
+    return files
+
+
+def _url_descarga_video_directo(url: str) -> bool:
+    try:
+        response = requests.get(url, stream=True, allow_redirects=True, timeout=20)
+        content_type = response.headers.get("Content-Type", "").lower()
+        first_chunk = next(response.iter_content(16), b"")
+        response.close()
+    except requests.RequestException as e:
+        logger.warning("No se pudo validar B-roll %s: %s", url, e)
+        return False
+
+    if response.status_code != 200:
+        return False
+    if first_chunk.startswith(b"<!DOCTYPE") or first_chunk.startswith(b"<html"):
+        return False
+    return "video" in content_type or "octet-stream" in content_type
 
 
 def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int = 60) -> dict:
