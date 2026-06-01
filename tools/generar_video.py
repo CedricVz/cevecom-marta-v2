@@ -73,73 +73,87 @@ ASSET_CATALOG = [
     {
         "label": "clienta cancelando cita",
         "url": "https://drive.google.com/file/d/1PQBac_pV9G-Jug7aD-Tv4df3iVd8oZpW/view",
+        "asset_id": "2b6e926169ac42128d77b58c22826f45",
         "keywords": ["cita", "cancelar", "cancelando", "agenda", "avisar", "reloj", "tiempo"],
     },
     {
         "label": "silla vacía del salón",
         "url": "https://drive.google.com/file/d/1SLAD4rzNzd2oqvSzrA6lsDK8gD8cke0s/view",
+        "asset_id": "79c691e646054dee862a41a4cd2275f1",
         "keywords": ["silla", "vacia", "vacía", "espacio vacio", "hora perdida"],
     },
     {
         "label": "clienta entrando al salón",
         "url": "https://drive.google.com/file/d/13I16KJWvzad5A-k2qDE9XOSn4QW6gr6W/view",
+        "asset_id": "7c1375284c8344148865d255ea4a666d",
         "keywords": ["clienta entrando", "entrando", "entrada", "venir", "salon", "salón"],
     },
     {
         "label": "entrada del salón",
         "url": "https://drive.google.com/file/d/1WZsW22s1sCsD3w_MDUcdkK58dE3nkUM-/view",
+        "asset_id": "6259d537750a4586aa99151f9435f6b3",
         "keywords": ["entrada", "salon", "salón", "centro", "local"],
     },
     {
         "label": "cabina estética facial",
         "url": "https://drive.google.com/file/d/110uc_-p2PTj3b2Mo4vbUK6ed6K7iGmkw/view",
+        "asset_id": "bf6dad91df4f4033b53774bba285a1ee",
         "keywords": ["cabina estetica", "cabina estética", "cabina facial"],
     },
     # Tratamientos faciales / producto
     {
         "label": "producto botox",
         "url": "https://drive.google.com/file/d/1Y9kua_KV130j8PKtdNcKsHOMi7cJyoQc/view",
+        "asset_id": "14e7a1335155453e9e4e0f1104b550ce",
         "keywords": ["producto botox", "botox", "producto"],
     },
     {
         "label": "tratamiento botox",
         "url": "https://drive.google.com/file/d/14hVIlEiPdpOTXCerhVaTjKFpgpryjy45/view",
+        "asset_id": "77cf57d6bc8345028a55e40664c211e6",
         "keywords": ["tratamiento botox", "botox capilar", "botox"],
     },
     {
         "label": "aplicar crema facial",
         "url": "https://drive.google.com/file/d/1YddOcZLToTJb18nn5sZBLxiKvtsFk2Pl/view",
+        "asset_id": "2008ba45158e443e9bce1d76fdbacb24",
         "keywords": ["aplicar crema", "crema facial", "video facial", "facial"],
     },
     {
         "label": "masaje facial",
         "url": "https://drive.google.com/file/d/1rUU2QvUfWeBiy6WeL-GKcFDY3GtyQT2G/view",
+        "asset_id": "4e143bc564264691a73c282251114a57",
         "keywords": ["masaje facial", "video facial", "facial"],
     },
     {
         "label": "radiofrecuencia facial",
         "url": "https://drive.google.com/file/d/1raaXNG8JGjHVCMPy6GA259tWbEi6iSpY/view",
+        "asset_id": "cb2abb401c9547f4af6166d90e1c3629",
         "keywords": ["radiofrecuencia", "reafirmar", "colageno", "colágeno"],
     },
     {
         "label": "laser",
         "url": "https://drive.google.com/file/d/144eXxhI66cA6TnEtrDUZrrwjdBIjT0mt/view",
+        "asset_id": "972ba0fdaa5b46c38737f443a41b1a7e",
         "keywords": ["laser", "láser", "depilacion", "depilación"],
     },
     # Corporales
     {
         "label": "drenaje abdomen",
         "url": "https://drive.google.com/file/d/1W7vG3qxAxnyPPSJr-ZPsUDQNvCmImkqC/view",
+        "asset_id": "21665fb6f6b741ab80b9c4b991d6ff54",
         "keywords": ["drenaje", "abdomen", "retencion", "retención", "linfatico", "linfático"],
     },
     {
         "label": "maderoterapia en camilla",
         "url": "https://drive.google.com/file/d/1zZqBq18SgdEm0JWRMPwWcibEAzk0Q5AV/view",
+        "asset_id": "1e0485d62d5041ccb964d18459ed7c53",
         "keywords": ["maderoterapia", "madero", "rodillos", "celulitis"],
     },
     {
         "label": "maderoterapia glúteos",
         "url": "https://drive.google.com/file/d/1GUDCL6Zskts3iwZiKlgBPfGl41RIhcVr/view",
+        "asset_id": "ad48e5ffd889461f96798d9fe26b3256",
         "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "celulitis"],
     },
     {
@@ -150,22 +164,26 @@ ASSET_CATALOG = [
     {
         "label": "HIFU brazos",
         "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
+        "asset_id": "029ff6c1f53546f2b79a0fc194e7f08f",
         "keywords": ["hifu", "hyfu", "brazos", "flacidez"],
     },
     # Pelo
     {
         "label": "lavar cabeza",
         "url": "https://drive.google.com/file/d/1Ka9_0u49GaVL5rSl-qz-_xtg_czZBVeL/view",
+        "asset_id": "df2368f300a14cfcbeaf0b70ee56f3b7",
         "keywords": ["lavar cabeza", "champu", "champú", "cabello", "pelo"],
     },
     {
         "label": "video keratina",
         "url": "https://drive.google.com/file/d/1Ukn_EzIKxAtez_mV0xkLBjoj9g5Kmi-8/view",
+        "asset_id": "aee7d7d68d974ba4bcf88ae819fe8a0f",
         "keywords": ["keratina", "cabello", "pelo"],
     },
     {
         "label": "balayage",
         "url": "https://drive.google.com/file/d/191Lq8QKnfPaYusoWyc6AG9kQv1duD8_T/view",
+        "asset_id": "b4504c405b18432cbf53744f523516ac",
         "keywords": ["balayage", "babylights", "rubio", "color", "pelo", "cabello"],
     },
 ]
@@ -280,7 +298,11 @@ def _seleccionar_broll(item: dict, max_assets: int = 12) -> list[dict[str, str]]
 
     candidatos.sort(key=lambda item: (-item[0], item[1]))
     seleccionados = [
-        {"label": asset["label"], "url": asset["url"]}
+        {
+            "label": asset["label"],
+            "url": asset["url"],
+            **({"asset_id": asset["asset_id"]} if asset.get("asset_id") else {}),
+        }
         for _, _, asset in candidatos[:max_assets]
     ]
 
@@ -317,15 +339,14 @@ def _drive_url_descarga(url: str) -> str:
 def _files_para_video_agent(assets: list[dict[str, str]]) -> list[dict[str, str]]:
     files = []
     for asset in assets:
-        url = _drive_url_descarga(asset["url"])
-        if not _url_descarga_video_directo(url):
-            logger.warning(
-                "B-roll omitido porque Drive no entrega vídeo directo: %s (%s)",
-                asset["label"],
-                url,
-            )
+        if asset.get("asset_id"):
+            files.append({"type": "asset_id", "asset_id": asset["asset_id"]})
             continue
-        files.append({"type": "url", "url": url})
+
+        logger.warning(
+            "B-roll omitido porque aún no tiene asset_id de HeyGen: %s",
+            asset["label"],
+        )
     return files
 
 
