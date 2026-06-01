@@ -181,6 +181,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Solo muestra qué B-roll seleccionaría para cada item; no llama a HeyGen ni Sheets.",
     )
+    parser.add_argument(
+        "--no-broll-files",
+        action="store_true",
+        help="No adjunta B-roll como files a HeyGen; mantiene las instrucciones en el prompt.",
+    )
     return parser.parse_args()
 
 
@@ -387,6 +392,7 @@ def crear_video_heygen_mcp(
     titulo: str,
     notas_escenas: str = "",
     broll_context: dict | None = None,
+    adjuntar_broll_files: bool = True,
 ) -> str:
     """Crea el vídeo via Video Agent MCP (~6 créditos, plan web) y devuelve session_id.
 
@@ -397,7 +403,9 @@ def crear_video_heygen_mcp(
     item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
     broll_assets = _seleccionar_broll(item_context)
     broll_block = _bloque_broll_assets(broll_assets)
-    broll_files = _files_para_video_agent(broll_assets)
+    broll_files = _files_para_video_agent(broll_assets) if adjuntar_broll_files else []
+    if not adjuntar_broll_files:
+        logger.warning("B-roll files desactivados: HeyGen recibirá solo instrucciones en el prompt.")
     scene_direction = (
         f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
         if notas_escenas else ""
@@ -451,7 +459,7 @@ def crear_video_heygen_mcp(
         "avatarId": HEYGEN_LOOK_ID,
         "voiceId": VOICE_ID,
         "brandKitId": BRAND_KIT_ID,
-        "files": broll_files,
+        "files": broll_files or None,
         "prompt": agent_prompt,
     }, token, timeout=120)
     session_id = result.get("session_id")
@@ -559,6 +567,7 @@ def main() -> None:
                 item["tema"],
                 notas_escenas=item.get("notas_escenas", ""),
                 broll_context=item,
+                adjuntar_broll_files=not args.no_broll_files,
             )
             # Guarda session_id inmediatamente: si el proceso falla durante el
             # polling se puede retomar el job que ya consumió créditos.
