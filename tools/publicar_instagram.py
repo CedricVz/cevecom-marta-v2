@@ -18,8 +18,9 @@ import logging
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -40,6 +41,7 @@ SCOPES_WRITE = [
 ]
 
 META_API = "https://graph.instagram.com/v25.0"
+HEYGEN_API = "https://api.heygen.com/v3"
 
 # Hashtags que se añaden al final de cada caption.
 HASHTAGS = "#cevecom #centroestética #belleza #barcelona #skincare #tratamientofacial"
@@ -92,6 +94,7 @@ def leer_aprobados(hoja: gspread.Worksheet) -> list[dict]:
             "tratamiento": fila.get("Tratamiento", ""),
             "guion":       fila.get("Guion", ""),
             "video_url":   fila["Video_preview"],
+            "id_heygen":   str(fila.get("ID_heygen", "")).strip(),
         })
     return aprobados
 
@@ -109,6 +112,57 @@ def construir_caption(item: dict) -> str:
         texto = item["tema"]
 
     return f"{texto}\n\n{HASHTAGS}" if HASHTAGS else texto
+
+
+# -- HeyGen -------------------------------------------------------------------
+
+def _expires_timestamp(video_url: str) -> int | None:
+    try:
+        raw = parse_qs(urlparse(video_url).query).get("Expires", [""])[0]
+        return int(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _url_necesita_refresco(video_url: str, margen_segundos: int = 6 * 60 * 60) -> bool:
+    expires = _expires_timestamp(video_url)
+    if expires is None:
+        return False
+    return expires <= int(datetime.now(timezone.utc).timestamp()) + margen_segundos
+
+
+def obtener_video_heygen(video_id: str) -> dict:
+    r = requests.get(
+        f"{HEYGEN_API}/videos/{video_id}",
+        headers={"x-api-key": cfg.heygen_api_key},
+        timeout=30,
+    )
+    r.raise_for_status()
+    body = r.json()
+    data = body.get("data") or {}
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Respuesta HeyGen invalida: {body}")
+    return data
+
+
+def asegurar_video_url_vigente(hoja: gspread.Worksheet, item: dict) -> str:
+    video_url = item["video_url"]
+    if not _url_necesita_refresco(video_url):
+        return video_url
+
+    video_id = item.get("id_heygen", "")
+    if not video_id:
+        raise RuntimeError("Video_preview caducado o proximo a caducar y falta ID_heygen")
+
+    logger.info("Fila %d: refrescando URL firmada de HeyGen", item["fila"])
+    video = obtener_video_heygen(video_id)
+    nuevo_video_url = video.get("video_url")
+    if not nuevo_video_url:
+        raise RuntimeError(f"HeyGen get video sin video_url: {video}")
+
+    actualizar_fila(hoja, item["fila"], {"Video_preview": nuevo_video_url})
+    item["video_url"] = nuevo_video_url
+    return nuevo_video_url
 
 
 # ── Meta Graph API ────────────────────────────────────────────────────────────
@@ -223,7 +277,8 @@ def main() -> None:
 
         try:
             caption      = construir_caption(item)
-            container_id = crear_contenedor(item["video_url"], caption)
+            video_url    = asegurar_video_url_vigente(hoja, item)
+            container_id = crear_contenedor(video_url, caption)
             logger.info("Fila %d: contenedor creado — %s", fila, container_id)
 
             esperar_procesamiento(container_id)
