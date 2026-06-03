@@ -154,42 +154,37 @@ ASSET_CATALOG = [
         "label": "drenaje abdomen",
         "url": "https://drive.google.com/file/d/1W7vG3qxAxnyPPSJr-ZPsUDQNvCmImkqC/view",
         "asset_id": "21665fb6f6b741ab80b9c4b991d6ff54",
-        "keywords": ["drenaje", "abdomen", "retencion", "retención", "linfatico", "linfático"],
+        "keywords": ["drenaje", "abdomen", "retencion", "retención", "linfatico", "linfático", "hifu barriga", "hifu abdomen", "reafirmar abdomen", "corporal"],
     },
     {
         "label": "barriga inchada",
         "url": "",
         "asset_id": "6516ec3496e046c1bb05bf5a02c9b96f",
-        "keywords": ["barriga", "abdomen", "hinchada", "inchada", "retencion", "retención"],
+        "keywords": ["barriga", "abdomen", "hinchada", "inchada", "retencion", "retención", "hifu barriga", "hifu abdomen", "reafirmar", "flacidez abdomen"],
     },
     {
         "label": "maderoterapia en camilla",
         "url": "https://drive.google.com/file/d/1zZqBq18SgdEm0JWRMPwWcibEAzk0Q5AV/view",
         "asset_id": "1e0485d62d5041ccb964d18459ed7c53",
-        "keywords": ["maderoterapia", "madero", "rodillos", "celulitis"],
+        "keywords": ["maderoterapia", "madero", "rodillos", "celulitis", "piernas", "hifu piernas", "reafirmar piernas", "corporal"],
     },
     {
         "label": "maderoterapia glúteos",
         "url": "https://drive.google.com/file/d/1GUDCL6Zskts3iwZiKlgBPfGl41RIhcVr/view",
         "asset_id": "ad48e5ffd889461f96798d9fe26b3256",
-        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "celulitis"],
+        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "celulitis", "piernas", "hifu piernas", "flacidez piernas"],
     },
     {
         "label": "maderoterapia culo",
         "url": "",
         "asset_id": "2e16e2de9edb4e1d891bb488ed437fe5",
-        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "culo", "celulitis"],
-    },
-    {
-        "label": "HIFU",
-        "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
-        "keywords": ["hifu", "hyfu", "reafirmar", "flacidez"],
+        "keywords": ["maderoterapia", "madero", "gluteos", "glúteos", "culo", "celulitis", "piernas", "hifu piernas", "flacidez piernas"],
     },
     {
         "label": "HIFU brazos",
         "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
         "asset_id": "029ff6c1f53546f2b79a0fc194e7f08f",
-        "keywords": ["hifu", "hyfu", "brazos", "flacidez"],
+        "keywords": ["hifu", "hyfu", "brazos", "flacidez", "hifu brazos", "hifu corporal", "reafirmar"],
     },
     # Pelo
     {
