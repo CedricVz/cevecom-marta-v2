@@ -47,8 +47,9 @@ SCOPES_WRITE = [
 # ── HeyGen ───────────────────────────────────────────────────────────────────
 HEYGEN_MCP_URL = "https://mcp.heygen.com/mcp/v1/"
 
-HEYGEN_LOOK_ID = "5b39fad8d2254dd8aee6cf6b3f651ac5"  # portrait look validado por MCP
-VOICE_ID       = "9d5fa6634a3a49c0bd9e47ec89a33dce"  # default_voice_id del nuevo look
+HEYGEN_LOOK_ID = "447c12c04e8b44678da17c881fbc7476"  # Look 1 principal aprobado
+HEYGEN_LOOK_2_ID = "19c92f39df754582a642aa0a872e46b0"  # Look 2 secundario, uso manual por Look_ID
+VOICE_ID       = "9d5fa6634a3a49c0bd9e47ec89a33dce"  # default_voice_id de Look 1 y Look 2
 BRAND_COLORS   = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"
 CENTRO_DIR     = "C/ Munné 15-17 bajos, Barcelona"
 BRAND_KIT_ID   = "bf6988fde35849079d09f9a6fa5b092d"
@@ -219,6 +220,11 @@ def parse_args() -> argparse.Namespace:
         help="Solo muestra qué B-roll seleccionaría para cada item; no llama a HeyGen ni Sheets.",
     )
     parser.add_argument(
+        "--dry-run-prompt",
+        action="store_true",
+        help="Muestra el prompt final para HeyGen; no llama a HeyGen ni Sheets.",
+    )
+    parser.add_argument(
         "--no-broll-files",
         action="store_true",
         help="No adjunta B-roll como files a HeyGen; mantiene las instrucciones en el prompt.",
@@ -255,6 +261,23 @@ def extraer_texto_hablado(guion: str) -> str:
     texto = re.sub(r"\[.+?\]\n?", "", guion)
     texto = re.sub(r"\n{3,}", "\n\n", texto)
     return texto.strip()
+
+
+def _limpiar_texto_para_tts(texto: str) -> str:
+    """Elimina emojis del texto hablado sin cambiar palabras ni puntuación normal."""
+    limpio = "".join(
+        c for c in texto
+        if not (
+            "\U0001F000" <= c <= "\U0001FAFF"
+            or "\U00002700" <= c <= "\U000027BF"
+            or "\U00002600" <= c <= "\U000026FF"
+        )
+    )
+    lineas = [re.sub(r"[ \t]{2,}", " ", linea).strip() for linea in limpio.splitlines()]
+    limpio = "\n".join(linea for linea in lineas)
+    limpio = re.sub(r"\n{3,}", "\n\n", limpio)
+    limpio = re.sub(r"[ \t]+([,.!?;:])", r"\1", limpio)
+    return limpio.strip()
 
 
 def _leer_token_oauth_heygen() -> str:
@@ -294,7 +317,74 @@ def _normalizar(s: str) -> str:
     return re.sub(r"\s+", " ", sin_acentos).strip()
 
 
-def _seleccionar_broll(item: dict, max_assets: int = 12) -> list[dict[str, str]]:
+def _contar_palabras(texto: str) -> int:
+    return len(re.findall(r"\b\w+\b", texto, flags=re.UNICODE))
+
+
+def _clasificar_tipo_reel(item: dict, texto: str) -> str:
+    texto_busqueda = _normalizar(" ".join([
+        item.get("tema", ""),
+        item.get("tratamiento", ""),
+        item.get("notas_escenas", ""),
+        texto,
+    ]))
+    keywords_presentacion = [
+        "clon",
+        "version digital",
+        "atencion 24/7",
+        "bienvenida",
+        "presentacion",
+        "anuncio",
+    ]
+    if any(keyword in texto_busqueda for keyword in keywords_presentacion):
+        return "presentacion_clon"
+    return "reel_estandar"
+
+
+def _max_broll_assets_para_item(item: dict, texto: str) -> int:
+    if _clasificar_tipo_reel(item, texto) == "presentacion_clon":
+        return 4
+    return 6 if _contar_palabras(texto) > 130 else 4
+
+
+def _normalizar_notas_escenas(notas: str, tipo_reel: str) -> str:
+    if not notas:
+        return ""
+
+    reglas = [
+        "NORMALIZED SCENE DIRECTION RULES:",
+        "Respect Marta's creative intention, tone, scene order, visual resources, and requested B-roll.",
+        "Interpret any instruction such as PONER TEXTO, TEXTO GRANDE, CENTRO PANTALLA, EFECTO ESCRIBIENDOSE, TEXTOS UNO A UNO, LABELS, or TITULOS as subtitle intent only, not as decorative overlays.",
+        "Convert suggested text into clean subtitles at bottom center, with gold background, white text, maximum two lines, and one caption block at a time.",
+        "Do not create creative title cards, floating labels, text lists, center-screen text, or extra decorative copy.",
+    ]
+    if tipo_reel == "presentacion_clon":
+        reglas.extend([
+            "For this presentation/clon reel, Marta's avatar is the narrative protagonist.",
+            "Use B-roll only as brief support: salon entrance, client entering, cabin, or general facial treatment.",
+            "Avoid a services collage and avoid mixing too many categories such as hair, aesthetics, and aparatology in the same video.",
+        ])
+
+    return "\n".join(reglas) + "\n\nORIGINAL SCENE DIRECTION FROM MARTA:\n" + notas
+
+
+def _resolver_look_voice(item: dict) -> tuple[str, str]:
+    look_solicitado = (item.get("look_id") or item.get("Look_ID") or "").strip()
+    if look_solicitado == HEYGEN_LOOK_2_ID:
+        return HEYGEN_LOOK_2_ID, VOICE_ID
+    if look_solicitado and look_solicitado != HEYGEN_LOOK_ID:
+        logger.warning(
+            "Look_ID %s no está permitido como look del sistema; se usará Look 1.",
+            look_solicitado,
+        )
+    return HEYGEN_LOOK_ID, VOICE_ID
+
+
+def _seleccionar_broll(
+    item: dict,
+    max_assets: int = 12,
+    tipo_reel: str = "reel_estandar",
+) -> list[dict[str, str]]:
     texto_busqueda = _normalizar(" ".join([
         item.get("tema", ""),
         item.get("tratamiento", ""),
@@ -316,6 +406,24 @@ def _seleccionar_broll(item: dict, max_assets: int = 12) -> list[dict[str, str]]
             vistos.add(asset["url"])
 
     candidatos.sort(key=lambda item: (-item[0], item[1]))
+    if tipo_reel == "presentacion_clon":
+        prioridad_presentacion = {
+            "clienta entrando al salón": 0,
+            "entrada del salón": 1,
+            "cabina final grande": 2,
+            "cabina estética facial": 3,
+            "aplicar crema facial": 4,
+            "masaje facial": 5,
+            "vapor facial": 6,
+        }
+        candidatos = [
+            candidato for candidato in candidatos
+            if candidato[2]["label"] in prioridad_presentacion
+        ]
+        candidatos.sort(
+            key=lambda item: (prioridad_presentacion[item[2]["label"]], -item[0], item[1])
+        )
+
     seleccionados = [
         {
             "label": asset["label"],
@@ -326,6 +434,17 @@ def _seleccionar_broll(item: dict, max_assets: int = 12) -> list[dict[str, str]]
     ]
 
     if not seleccionados:
+        if tipo_reel == "presentacion_clon":
+            seleccionados = [
+                {
+                    "label": asset["label"],
+                    "url": asset["url"],
+                    **({"asset_id": asset["asset_id"]} if asset.get("asset_id") else {}),
+                }
+                for asset in ASSET_CATALOG
+                if asset["label"] in prioridad_presentacion
+            ][:max_assets]
+            return seleccionados
         seleccionados.append({
             "label": "B-roll principal por tratamiento",
             "url": _asset_url_para_tratamiento(item.get("tema", "")),
@@ -427,6 +546,124 @@ def _llamar_mcp_heygen(tool_name: str, arguments: dict, token: str, timeout: int
         return {"text": content[0]["text"]}
 
 
+def _preparar_video_agent_payload(
+    texto: str,
+    titulo: str,
+    notas_escenas: str = "",
+    broll_context: dict | None = None,
+    adjuntar_broll_files: bool = True,
+) -> dict:
+    texto_tts = _limpiar_texto_para_tts(texto)
+    item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
+    tipo_reel = _clasificar_tipo_reel(item_context, texto_tts)
+    max_broll_assets = _max_broll_assets_para_item(item_context, texto_tts)
+    broll_assets = _seleccionar_broll(
+        item_context,
+        max_assets=max_broll_assets,
+        tipo_reel=tipo_reel,
+    )
+    broll_block = _bloque_broll_assets(broll_assets)
+    broll_files = _files_para_video_agent(broll_assets) if adjuntar_broll_files else []
+    if not adjuntar_broll_files:
+        logger.warning("B-roll files desactivados: HeyGen recibirá solo instrucciones en el prompt.")
+    notas_normalizadas = _normalizar_notas_escenas(notas_escenas, tipo_reel)
+    scene_direction = (
+        f"SCENE DIRECTION (follow exactly):\n{notas_normalizadas}\n\n"
+        if notas_normalizadas else ""
+    )
+    avatar_id, voice_id = _resolver_look_voice(item_context)
+    first_words_rule = (
+        'The first spoken words must be exactly: "Hola, soy Marta." '
+        if texto_tts.strip().startswith("Hola, soy Marta.")
+        else "The first spoken words must be exactly the first words of the script. "
+    )
+    agent_prompt = (
+        f"Create a 9:16 VERTICAL portrait Instagram Reel "
+        f"(720x1280px) for 'Marta Suñé Estilista "
+        f"& Estética Avanzada', a premium beauty center in Barcelona "
+        f"at {CENTRO_DIR}. "
+        f"TARGET DURATION: 50-58 seconds. The video may be slightly longer "
+        f"only if needed to complete the full script naturally. Never slow "
+        f"down the voice to fill time. Never cut the script. "
+        f"CRITICAL OUTPUT REQUIREMENT: The final video MUST be vertical "
+        f"9:16 portrait format. "
+        f"CRITICAL SCRIPT REQUIREMENT: Do not summarize, rewrite, shorten, "
+        f"skip, reorder, or remove any spoken sentence. The avatar voice "
+        f"must say the full script word for word, even if the final video "
+        f"becomes longer than planned. {first_words_rule}"
+        f"Do not say any filler, interjection, 'qué', 'eh', 'bueno', "
+        f"or any word before the script. Use a natural, fluent "
+        f"conversational Spanish pace. Do not artificially slow down the "
+        f"narration to fill the target duration. Use short natural pauses only. "
+        f"AVATAR FRAMING: Place avatar {avatar_id} as a portrait "
+        f"talking head — crop and frame to show face and upper body "
+        f"centered in a vertical 9:16 composition. The avatar source "
+        f"is landscape but the OUTPUT must be portrait. "
+        f"Use voice ID {voice_id}. "
+        f"Brand colors: {BRAND_COLORS}. Brand kit ID: {BRAND_KIT_ID}. "
+        f"BRAND CAPTION POLICY - FOLLOW EXACTLY: "
+        f"Use the Brand Kit ID provided for visual identity, but do not "
+        f"create extra decorative text. Captions must follow the brand "
+        f"identity: position bottom center only; style gold background label "
+        f"inspired by the brand kit; text color white; font clean, elegant, "
+        f"and highly legible on mobile; maximum two lines per caption; safe "
+        f"margins for Instagram Reels; one caption block at a time only. "
+        f"Do not place captions at the top, middle, sides, or over Marta's "
+        f"face. Do not add floating quotes, animated titles, kinetic "
+        f"typography, duplicated phrases, extra marketing copy, or "
+        f"decorative text cards. Captions must match the spoken sentence "
+        f"and must never overlap with the previous or next sentence. "
+        f"Captions should appear as clean subtitles, not as creative title cards. "
+        f"Do not animate captions letter by letter. Use a simple, clean appearance. "
+        f"The logo must appear only at the end of the video, during the "
+        f"final 2-second hold, together with the final brand closing frame. "
+        f"Do not show the logo during the main spoken content. Prioritize "
+        f"clarity, elegance, and brand consistency over visual effects. "
+        f"VIDEO STRUCTURE: "
+        f"Open with avatar talking head, beauty clinic background, "
+        f"warm professional lighting, portrait framing. "
+        f"Then keep the avatar voice reading the complete script and "
+        f"intercut with real footage from the center. {broll_block} "
+        f"Show hands-on treatment, professional equipment, actual clinic space, "
+        f"or appointment-related clips according to the scene direction. "
+        f"NO generic stock footage. "
+        f"All B-roll must be portrait 9:16. "
+        f"B-roll must support the message without competing with captions "
+        f"or the final CTA. If the scene direction asks for extra text, "
+        f"large titles, treatment lists, floating labels, or decorative copy, "
+        f"ignore those text overlay requests and follow the BRAND CAPTION "
+        f"POLICY instead. "
+        f"ENDING POLICY - FOLLOW EXACTLY: "
+        f"Do not cut the final sentence. The final CTA must be fully spoken "
+        f"and fully visible. After the last spoken word, keep Marta on screen "
+        f"for 2 full seconds, smiling naturally in silence. The final shot "
+        f"must show Marta/avatar visible on screen. During this final "
+        f"hold, show only Marta smiling and the brand logo. Do not add extra "
+        f"CTA text unless it is already part of the final spoken sentence. "
+        f"Do not add new subtitles during the silent hold. "
+        f"Do not end on an empty screen, generic background, or B-roll without Marta. "
+        f"Do not fade out before the final 2-second hold is complete. "
+        f"STYLE: warm, professional, approachable. "
+        f"{scene_direction}"
+        f"Speak EXACTLY this script word for word:\n\n{texto_tts}"
+    )
+    return {
+        "mode": "generate",
+        "orientation": "portrait",
+        "avatarId": avatar_id,
+        "voiceId": voice_id,
+        "brandKitId": BRAND_KIT_ID,
+        "files": broll_files or None,
+        "prompt": agent_prompt,
+        "tipo_reel": tipo_reel,
+        "palabras_guion_hablado": _contar_palabras(texto_tts),
+        "emojis_eliminados_tts": texto_tts != texto,
+        "guion_tts_limpio": texto_tts,
+        "max_broll_assets": max_broll_assets,
+        "broll_assets": broll_assets,
+    }
+
+
 def crear_video_heygen_mcp(
     texto: str,
     titulo: str,
@@ -439,68 +676,22 @@ def crear_video_heygen_mcp(
     El video_id no está disponible al crear — se obtiene al final del polling
     en `esperar_video_heygen_mcp` (que también devuelve la URL).
     """
+    payload = _preparar_video_agent_payload(
+        texto,
+        titulo,
+        notas_escenas=notas_escenas,
+        broll_context=broll_context,
+        adjuntar_broll_files=adjuntar_broll_files,
+    )
     token = _leer_token_oauth_heygen()
-    item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
-    broll_assets = _seleccionar_broll(item_context)
-    broll_block = _bloque_broll_assets(broll_assets)
-    broll_files = _files_para_video_agent(broll_assets) if adjuntar_broll_files else []
-    if not adjuntar_broll_files:
-        logger.warning("B-roll files desactivados: HeyGen recibirá solo instrucciones en el prompt.")
-    scene_direction = (
-        f"SCENE DIRECTION (follow exactly):\n{notas_escenas}\n\n"
-        if notas_escenas else ""
-    )
-    agent_prompt = (
-        f"Create a 9:16 VERTICAL portrait Instagram Reel "
-        f"(720x1280px, 35-45 seconds) for 'Marta Suñé Estilista "
-        f"& Estética Avanzada', a premium beauty center in Barcelona "
-        f"at {CENTRO_DIR}. "
-        f"CRITICAL OUTPUT REQUIREMENT: The final video MUST be vertical "
-        f"9:16 portrait format. "
-        f"CRITICAL SCRIPT REQUIREMENT: Do not summarize, rewrite, shorten, "
-        f"skip, reorder, or remove any spoken sentence. The avatar voice "
-        f"must say the full script word for word, even if the final video "
-        f"becomes longer than planned. "
-        f"AVATAR FRAMING: Place avatar {HEYGEN_LOOK_ID} as a portrait "
-        f"talking head — crop and frame to show face and upper body "
-        f"centered in a vertical 9:16 composition. The avatar source "
-        f"is landscape but the OUTPUT must be portrait. "
-        f"Use voice ID {VOICE_ID}. "
-        f"Brand colors: {BRAND_COLORS}. Apply to text overlays and "
-        f"graphic elements. Brand kit ID: {BRAND_KIT_ID}. "
-        f"TEXT OVERLAY RULES: Do not add continuous subtitles/captions "
-        f"for every spoken sentence. Use only short, intentional on-screen "
-        f"text overlays requested by the scene direction or useful for hooks "
-        f"and CTA. Text must be highly legible on mobile: bold white text "
-        f"on a dark translucent background or brand red/gold solid label, "
-        f"with enough contrast and safe margins. Never place pale text "
-        f"directly over bright footage. "
-        f"VIDEO STRUCTURE: "
-        f"Open with avatar talking head, beauty clinic background, "
-        f"warm professional lighting, portrait framing. "
-        f"Then keep the avatar voice reading the complete script and "
-        f"intercut with real footage from the center. {broll_block} "
-        f"Show hands-on treatment, professional equipment, actual clinic space, "
-        f"or appointment-related clips according to the scene direction. "
-        f"NO generic stock footage. "
-        f"All B-roll must be portrait 9:16. "
-        f"Timing is flexible: prioritize the complete spoken script over "
-        f"the target duration. "
-        f"[35-45s] Avatar delivers CTA, 'Marta Suñé' branding visible. "
-        f"If the CTA happens after 45 seconds because the script is longer, "
-        f"that is correct. Do not cut the script to fit any timestamp. "
-        f"STYLE: warm, professional, approachable. "
-        f"{scene_direction}"
-        f"Speak EXACTLY this script word for word:\n\n{texto}"
-    )
     result = _llamar_mcp_heygen("create_video_agent", {
-        "mode": "generate",
-        "orientation": "portrait",
-        "avatarId": HEYGEN_LOOK_ID,
-        "voiceId": VOICE_ID,
-        "brandKitId": BRAND_KIT_ID,
-        "files": broll_files or None,
-        "prompt": agent_prompt,
+        "mode": payload["mode"],
+        "orientation": payload["orientation"],
+        "avatarId": payload["avatarId"],
+        "voiceId": payload["voiceId"],
+        "brandKitId": payload["brandKitId"],
+        "files": payload["files"],
+        "prompt": payload["prompt"],
     }, token, timeout=120)
     session_id = result.get("session_id")
     if not session_id:
@@ -574,16 +765,59 @@ def main() -> None:
         return
 
     if args.dry_run_assets:
-        preview = [
-            {
+        preview = []
+        for item in guiones:
+            texto = extraer_texto_hablado(item.get("guion", ""))
+            texto_tts = _limpiar_texto_para_tts(texto)
+            tipo_reel = _clasificar_tipo_reel(item, texto_tts)
+            max_broll_assets = _max_broll_assets_para_item(item, texto_tts)
+            broll_assets = _seleccionar_broll(
+                item,
+                max_assets=max_broll_assets,
+                tipo_reel=tipo_reel,
+            )
+            preview.append({
                 "fila": item.get("fila"),
                 "marta_fila": item.get("marta_fila"),
                 "tema": item.get("tema"),
-                "broll_assets": _seleccionar_broll(item),
-                "files_payload": _files_para_video_agent(_seleccionar_broll(item)),
-            }
-            for item in guiones
-        ]
+                "tipo_reel": tipo_reel,
+                "palabras_guion_hablado": _contar_palabras(texto_tts),
+                "emojis_eliminados_tts": texto_tts != texto,
+                "max_broll_assets": max_broll_assets,
+                "broll_assets": broll_assets,
+                "files_payload": _files_para_video_agent(broll_assets),
+            })
+        print(json.dumps(preview, ensure_ascii=False, indent=2))
+        return
+
+    if args.dry_run_prompt:
+        preview = []
+        for item in guiones:
+            texto = extraer_texto_hablado(item.get("guion", ""))
+            payload = _preparar_video_agent_payload(
+                texto,
+                item.get("tema", ""),
+                notas_escenas=item.get("notas_escenas", ""),
+                broll_context=item,
+                adjuntar_broll_files=not args.no_broll_files,
+            )
+            preview.append({
+                "fila": item.get("fila"),
+                "marta_fila": item.get("marta_fila"),
+                "tema": item.get("tema"),
+                "tipo_reel": payload["tipo_reel"],
+                "palabras_guion_hablado": payload["palabras_guion_hablado"],
+                "emojis_eliminados_tts": payload["emojis_eliminados_tts"],
+                "guion_tts_limpio": payload["guion_tts_limpio"],
+                "max_broll_assets": payload["max_broll_assets"],
+                "avatarId": payload["avatarId"],
+                "voiceId": payload["voiceId"],
+                "brandKitId": payload["brandKitId"],
+                "orientation": payload["orientation"],
+                "broll_assets": payload["broll_assets"],
+                "files": payload["files"],
+                "prompt": payload["prompt"],
+            })
         print(json.dumps(preview, ensure_ascii=False, indent=2))
         return
 
