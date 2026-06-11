@@ -53,6 +53,7 @@ VOICE_ID       = "9d5fa6634a3a49c0bd9e47ec89a33dce"  # default_voice_id de Look 
 BRAND_COLORS   = "#D71F28 (rojo), #C5A059 (dorado), #605E5E (gris), #FFFFFF"
 CENTRO_DIR     = "C/ Munné 15-17 bajos, Barcelona"
 BRAND_KIT_ID   = "bf6988fde35849079d09f9a6fa5b092d"
+HEYGEN_LOGO_ASSET_ID = "f51d0994f8fe4af9876fa5725df111f9"
 
 ASSET_URLS = {
     "laser":               "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
@@ -321,6 +322,165 @@ def _contar_palabras(texto: str) -> int:
     return len(re.findall(r"\b\w+\b", texto, flags=re.UNICODE))
 
 
+EXPLICIT_ASSET_REQUESTS = [
+    {
+        "solicitud": "agenda / cita",
+        "terms": ["agenda abierta", "agenda", "cita reservada", "citas"],
+        "labels": ["clienta cancelando cita"],
+    },
+    {
+        "solicitud": "silla vacía",
+        "terms": ["silla vacia", "silla vacía"],
+        "labels": ["silla vacía del salón"],
+    },
+    {
+        "solicitud": "reloj",
+        "terms": ["reloj", "pasando las horas"],
+        "labels": ["clienta cancelando cita"],
+    },
+    {
+        "solicitud": "clienta entrando",
+        "terms": ["clienta entrando", "entrando al salon", "entrando al salón", "video entrando al salon"],
+        "labels": ["clienta entrando al salón"],
+    },
+    {
+        "solicitud": "entrada",
+        "terms": ["entrada", "entrada del salon", "entrada del salón"],
+        "labels": ["entrada del salón"],
+    },
+    {
+        "solicitud": "salón",
+        "terms": ["salon", "salón"],
+        "labels": ["entrada del salón"],
+    },
+    {
+        "solicitud": "cabina",
+        "terms": ["cabina"],
+        "labels": ["cabina final grande"],
+    },
+    {
+        "solicitud": "maderoterapia",
+        "terms": ["maderoterapia"],
+        "labels": ["maderoterapia en camilla"],
+    },
+    {
+        "solicitud": "HIFU",
+        "terms": ["hifu", "hyfu"],
+        "labels": ["HIFU brazos"],
+    },
+    {
+        "solicitud": "láser",
+        "terms": ["laser", "láser"],
+        "labels": ["laser"],
+    },
+    {
+        "solicitud": "aplicar crema facial",
+        "terms": ["aplicar crema facial", "aplicar crema"],
+        "labels": ["aplicar crema facial"],
+    },
+    {
+        "solicitud": "masaje facial",
+        "terms": ["masaje facial"],
+        "labels": ["masaje facial"],
+    },
+    {
+        "solicitud": "facial",
+        "terms": ["video facial", "facial"],
+        "labels": ["aplicar crema facial"],
+    },
+    {
+        "solicitud": "balayage",
+        "terms": ["balayage", "babylights"],
+        "labels": ["balayage"],
+    },
+    {
+        "solicitud": "producto botox",
+        "terms": ["producto botox"],
+        "labels": ["producto botox"],
+    },
+    {
+        "solicitud": "drenaje",
+        "terms": ["drenaje", "drenaje 4"],
+        "labels": ["drenaje abdomen"],
+    },
+]
+
+
+def _asset_por_label() -> dict[str, dict]:
+    return {asset["label"]: asset for asset in ASSET_CATALOG}
+
+
+def _asset_publico(asset: dict) -> dict[str, str]:
+    return {
+        "label": asset["label"],
+        "url": asset["url"],
+        **({"asset_id": asset["asset_id"]} if asset.get("asset_id") else {}),
+    }
+
+
+def _orden_presentacion(label: str) -> int:
+    prioridad = {
+        "clienta entrando al salón": 0,
+        "entrada del salón": 1,
+        "cabina final grande": 2,
+        "cabina estética facial": 3,
+    }
+    return prioridad.get(label, 100)
+
+
+def _orden_citas_cancelaciones(label: str) -> int:
+    prioridad = {
+        "clienta cancelando cita": 0,
+        "silla vacía del salón": 1,
+        "clienta entrando al salón": 2,
+        "aplicar crema facial": 3,
+        "drenaje abdomen": 4,
+        "producto botox": 20,
+    }
+    return prioridad.get(label, 10)
+
+
+def _es_reel_citas_cancelaciones(texto_busqueda: str) -> bool:
+    return any(
+        keyword in texto_busqueda
+        for keyword in ["cancelar", "cancelacion", "cita", "agenda", "avisar", "silla vacia"]
+    )
+
+
+def _detectar_assets_solicitados(notas_escenas: str) -> tuple[list[dict], list[dict], list[str]]:
+    texto_notas = _normalizar(notas_escenas)
+    catalogo = _asset_por_label()
+    solicitados = []
+    encontrados = []
+    no_encontrados = []
+
+    for rule_index, rule in enumerate(EXPLICIT_ASSET_REQUESTS):
+        posiciones = [
+            texto_notas.find(_normalizar(term))
+            for term in rule["terms"]
+            if _normalizar(term) in texto_notas
+        ]
+        if not posiciones:
+            continue
+        posicion = min(posiciones)
+        solicitud = rule["solicitud"]
+        solicitados.append(solicitud)
+        asset = next((catalogo.get(label) for label in rule["labels"] if catalogo.get(label)), None)
+        if not asset:
+            no_encontrados.append(solicitud)
+            continue
+        encontrados.append({
+            "solicitud": solicitud,
+            "label": asset["label"],
+            "asset": asset,
+            "posicion": posicion,
+            "rule_index": rule_index,
+            "presentacion_order": _orden_presentacion(asset["label"]),
+        })
+
+    return solicitados, encontrados, no_encontrados
+
+
 def _clasificar_tipo_reel(item: dict, texto: str) -> str:
     texto_busqueda = _normalizar(" ".join([
         item.get("tema", ""),
@@ -332,9 +492,13 @@ def _clasificar_tipo_reel(item: dict, texto: str) -> str:
         "clon",
         "version digital",
         "atencion 24/7",
+        "atencion personalizada 24/7",
         "bienvenida",
         "presentacion",
         "anuncio",
+        "mensaje directo",
+        "dm",
+        "nunca te quedes sin respuesta",
     ]
     if any(keyword in texto_busqueda for keyword in keywords_presentacion):
         return "presentacion_clon"
@@ -342,8 +506,11 @@ def _clasificar_tipo_reel(item: dict, texto: str) -> str:
 
 
 def _max_broll_assets_para_item(item: dict, texto: str) -> int:
-    if _clasificar_tipo_reel(item, texto) == "presentacion_clon":
-        return 4
+    solicitados, encontrados, _no_encontrados = _detectar_assets_solicitados(
+        item.get("notas_escenas", "")
+    )
+    if solicitados:
+        return max(len(encontrados), len(solicitados), 1)
     return 6 if _contar_palabras(texto) > 130 else 4
 
 
@@ -351,21 +518,45 @@ def _normalizar_notas_escenas(notas: str, tipo_reel: str) -> str:
     if not notas:
         return ""
 
+    estilo_overlay_ignorado = {
+        "estilo texto",
+        "color blanco",
+        "blanco",
+        "efecto escribiendose",
+        "minimalista",
+        "parte inferior",
+        "parte inferior del video",
+        "estilo",
+        "centro pantalla",
+        "misma posicion y estilo del texto inicial",
+    }
+    lineas_limpias = []
+    for linea in notas.splitlines():
+        clave = _normalizar(linea).strip(" .:")
+        if clave in estilo_overlay_ignorado:
+            continue
+        if clave.startswith("efecto escrib") or clave.startswith("misma posici"):
+            continue
+        if clave.startswith("mismo estilo"):
+            continue
+        lineas_limpias.append(linea)
+    notas_limpias = "\n".join(lineas_limpias)
+
     reglas = [
         "NORMALIZED SCENE DIRECTION RULES:",
         "Respect Marta's creative intention, tone, scene order, visual resources, and requested B-roll.",
         "Interpret any instruction such as PONER TEXTO, TEXTO GRANDE, CENTRO PANTALLA, EFECTO ESCRIBIENDOSE, TEXTOS UNO A UNO, LABELS, or TITULOS as subtitle intent only, not as decorative overlays.",
-        "Convert suggested text into clean subtitles at bottom center, with gold background, white text, maximum two lines, and one caption block at a time.",
+        "Convert suggested text into simple native subtitles at bottom center, maximum two lines, and one caption block at a time.",
         "Do not create creative title cards, floating labels, text lists, center-screen text, or extra decorative copy.",
     ]
     if tipo_reel == "presentacion_clon":
         reglas.extend([
             "For this presentation/clon reel, Marta's avatar is the narrative protagonist.",
-            "Use B-roll only as brief support: salon entrance, client entering, cabin, or general facial treatment.",
-            "Avoid a services collage and avoid mixing too many categories such as hair, aesthetics, and aparatology in the same video.",
+            "Use B-roll as support for Marta's story, following the specific assets Marta requested.",
+            "If Marta requested treatment clips, use them intentionally and keep transitions coherent rather than suppressing them.",
         ])
 
-    return "\n".join(reglas) + "\n\nORIGINAL SCENE DIRECTION FROM MARTA:\n" + notas
+    return "\n".join(reglas) + "\n\nORIGINAL SCENE DIRECTION FROM MARTA:\n" + notas_limpias
 
 
 def _resolver_look_voice(item: dict) -> tuple[str, str]:
@@ -385,13 +576,22 @@ def _seleccionar_broll(
     max_assets: int = 12,
     tipo_reel: str = "reel_estandar",
 ) -> list[dict[str, str]]:
+    return _seleccionar_broll_detallado(item, max_assets=max_assets, tipo_reel=tipo_reel)["assets_finales"]
+
+
+def _seleccionar_broll_detallado(
+    item: dict,
+    max_assets: int = 12,
+    tipo_reel: str = "reel_estandar",
+) -> dict:
     texto_busqueda = _normalizar(" ".join([
         item.get("tema", ""),
         item.get("tratamiento", ""),
         item.get("audiencia", ""),
         item.get("notas_escenas", ""),
+        item.get("guion", ""),
     ]))
-    candidatos = []
+    candidatos_heuristica = []
     vistos = set()
 
     for orden, asset in enumerate(ASSET_CATALOG):
@@ -402,54 +602,114 @@ def _seleccionar_broll(
             if _normalizar(keyword) in texto_busqueda
         ]
         if coincidencias:
-            candidatos.append((len(coincidencias), orden, asset))
+            candidatos_heuristica.append((len(coincidencias), orden, asset))
             vistos.add(asset["url"])
 
-    candidatos.sort(key=lambda item: (-item[0], item[1]))
+    candidatos_heuristica.sort(key=lambda item: (-item[0], item[1]))
+    solicitados, encontrados, no_encontrados = _detectar_assets_solicitados(
+        item.get("notas_escenas", "")
+    )
+    motivo_seleccion = []
+    warnings = []
+    seleccionados_assets = []
+    labels_seleccionados = set()
+    fallback_assets = []
+
+    if encontrados:
+        motivo_seleccion.append("Se priorizan assets pedidos explícitamente por Marta en notas_escenas.")
+    if no_encontrados:
+        motivo_seleccion.append("Algunas solicitudes de Marta no existen en el catálogo y se cubrirán con fallback.")
+    if len(encontrados) > 4:
+        warnings.append(
+            f"Marta pidió {len(encontrados)} assets; esto puede aumentar duración/coste o generar un vídeo más cargado."
+        )
+
+    def agregar(asset: dict, motivo: str) -> bool:
+        if asset["label"] in labels_seleccionados:
+            return False
+        seleccionados_assets.append(asset)
+        labels_seleccionados.add(asset["label"])
+        if motivo == "fallback":
+            fallback_assets.append(asset)
+        return True
+
     if tipo_reel == "presentacion_clon":
-        prioridad_presentacion = {
+        prioridad_presentacion_core = {
             "clienta entrando al salón": 0,
             "entrada del salón": 1,
             "cabina final grande": 2,
             "cabina estética facial": 3,
+        }
+        prioridad_presentacion_fallback = {
             "aplicar crema facial": 4,
             "masaje facial": 5,
-            "vapor facial": 6,
         }
-        candidatos = [
-            candidato for candidato in candidatos
-            if candidato[2]["label"] in prioridad_presentacion
-        ]
-        candidatos.sort(
-            key=lambda item: (prioridad_presentacion[item[2]["label"]], -item[0], item[1])
-        )
-
-    seleccionados = [
-        {
-            "label": asset["label"],
-            "url": asset["url"],
-            **({"asset_id": asset["asset_id"]} if asset.get("asset_id") else {}),
+        prioridad_presentacion = {
+            **prioridad_presentacion_core,
+            **prioridad_presentacion_fallback,
         }
-        for _, _, asset in candidatos[:max_assets]
-    ]
+        encontrados_ordenados = sorted(encontrados, key=lambda entry: (entry["posicion"], entry["rule_index"]))
+        for entry in encontrados_ordenados:
+            agregar(entry["asset"], "marta")
 
-    if not seleccionados:
+        if not encontrados or no_encontrados:
+            for _orden, asset in enumerate(ASSET_CATALOG):
+                label = asset["label"]
+                if label not in prioridad_presentacion_core or label in labels_seleccionados:
+                    continue
+                if len(seleccionados_assets) >= max_assets:
+                    break
+                if agregar(asset, "fallback"):
+                    labels_seleccionados.add(label)
+        if fallback_assets:
+            motivo_seleccion.append("Se completa con salón/cabina/entrada como fallback de coherencia.")
+    else:
+        if _es_reel_citas_cancelaciones(texto_busqueda) and not encontrados:
+            motivo_seleccion.append(
+                "Para reel de citas/cancelaciones sin assets explícitos se priorizarán cita, silla vacía y entrada como fallback."
+            )
+        encontrados_ordenados = sorted(encontrados, key=lambda item: (item["posicion"], item["rule_index"]))
+        for entry in encontrados_ordenados:
+            agregar(entry["asset"], "marta")
+        if not encontrados:
+            for _, _, asset in candidatos_heuristica[:max_assets]:
+                agregar(asset, "heuristica")
+        elif len(encontrados) < max_assets and no_encontrados:
+            for _, _, asset in candidatos_heuristica:
+                if len(seleccionados_assets) >= max_assets:
+                    break
+                agregar(asset, "fallback")
+
+    if not seleccionados_assets:
         if tipo_reel == "presentacion_clon":
-            seleccionados = [
-                {
-                    "label": asset["label"],
-                    "url": asset["url"],
-                    **({"asset_id": asset["asset_id"]} if asset.get("asset_id") else {}),
-                }
-                for asset in ASSET_CATALOG
-                if asset["label"] in prioridad_presentacion
-            ][:max_assets]
-            return seleccionados
-        seleccionados.append({
-            "label": "B-roll principal por tratamiento",
-            "url": _asset_url_para_tratamiento(item.get("tema", "")),
-        })
-    return seleccionados
+            for asset in ASSET_CATALOG:
+                if asset["label"] in prioridad_presentacion:
+                    agregar(asset, "fallback")
+            motivo_seleccion.append("No hubo coincidencias; se usa fallback visual de presentación.")
+        else:
+            seleccionados_assets.append({
+                "label": "B-roll principal por tratamiento",
+                "url": _asset_url_para_tratamiento(item.get("tema", "")),
+            })
+            motivo_seleccion.append("No hubo coincidencias; se usa B-roll por tratamiento como fallback.")
+
+    assets_finales = [_asset_publico(asset) for asset in seleccionados_assets]
+    return {
+        "assets_solicitados_por_marta": solicitados,
+        "assets_encontrados": [
+            {
+                "solicitud": entry["solicitud"],
+                "label": entry["label"],
+                **({"asset_id": entry["asset"]["asset_id"]} if entry["asset"].get("asset_id") else {}),
+            }
+            for entry in encontrados
+        ],
+        "assets_no_encontrados": no_encontrados,
+        "assets_fallback": [_asset_publico(asset) for asset in fallback_assets],
+        "assets_finales": assets_finales,
+        "motivo_seleccion": motivo_seleccion,
+        "warnings": warnings,
+    }
 
 
 def _bloque_broll_assets(assets: list[dict[str, str]]) -> str:
@@ -485,6 +745,8 @@ def _files_para_video_agent(assets: list[dict[str, str]]) -> list[dict[str, str]
             "B-roll omitido porque aún no tiene asset_id de HeyGen: %s",
             asset["label"],
         )
+    if HEYGEN_LOGO_ASSET_ID not in {file["asset_id"] for file in files}:
+        files.append({"type": "asset_id", "asset_id": HEYGEN_LOGO_ASSET_ID})
     return files
 
 
@@ -557,11 +819,12 @@ def _preparar_video_agent_payload(
     item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
     tipo_reel = _clasificar_tipo_reel(item_context, texto_tts)
     max_broll_assets = _max_broll_assets_para_item(item_context, texto_tts)
-    broll_assets = _seleccionar_broll(
+    broll_selection = _seleccionar_broll_detallado(
         item_context,
         max_assets=max_broll_assets,
         tipo_reel=tipo_reel,
     )
+    broll_assets = broll_selection["assets_finales"]
     broll_block = _bloque_broll_assets(broll_assets)
     broll_files = _files_para_video_agent(broll_assets) if adjuntar_broll_files else []
     if not adjuntar_broll_files:
@@ -601,24 +864,26 @@ def _preparar_video_agent_payload(
         f"is landscape but the OUTPUT must be portrait. "
         f"Use voice ID {voice_id}. "
         f"Brand colors: {BRAND_COLORS}. Brand kit ID: {BRAND_KIT_ID}. "
-        f"BRAND CAPTION POLICY - FOLLOW EXACTLY: "
-        f"Use the Brand Kit ID provided for visual identity, but do not "
-        f"create extra decorative text. Captions must follow the brand "
-        f"identity: position bottom center only; style gold background label "
-        f"inspired by the brand kit; text color white; font clean, elegant, "
-        f"and highly legible on mobile; maximum two lines per caption; safe "
-        f"margins for Instagram Reels; one caption block at a time only. "
-        f"Do not place captions at the top, middle, sides, or over Marta's "
-        f"face. Do not add floating quotes, animated titles, kinetic "
-        f"typography, duplicated phrases, extra marketing copy, or "
-        f"decorative text cards. Captions must match the spoken sentence "
-        f"and must never overlap with the previous or next sentence. "
-        f"Captions should appear as clean subtitles, not as creative title cards. "
-        f"Do not animate captions letter by letter. Use a simple, clean appearance. "
-        f"The logo must appear only at the end of the video, during the "
-        f"final 2-second hold, together with the final brand closing frame. "
-        f"Do not show the logo during the main spoken content. Prioritize "
-        f"clarity, elegance, and brand consistency over visual effects. "
+        f"Attached brand logo asset ID: {HEYGEN_LOGO_ASSET_ID}. "
+        f"NATIVE SUBTITLES POLICY - FOLLOW EXACTLY: "
+        f"Use HeyGen native subtitles/captions if available. Keep them simple, "
+        f"clean, bottom centered, highly legible on mobile, synchronized with "
+        f"the spoken voice, maximum two lines at a time. Use a neutral/native "
+        f"caption style, not a designed gold box, not animated typography, and "
+        f"not decorative text overlays. Do not create floating quotes, "
+        f"center-screen titles, animated title cards, service labels, duplicated "
+        f"phrases, kinetic typography, or extra marketing copy. If Marta's scene "
+        f"notes ask for PONER TEXTO, TEXTO GRANDE, CENTRO PANTALLA, "
+        f"EFECTO ESCRIBIENDOSE, TEXTOS UNO A UNO, labels, or treatment names, "
+        f"interpret that only as subtitle intent or ignore it when it duplicates "
+        f"the spoken script. Captions must match the spoken sentence and must "
+        f"not compete with Marta's face. "
+        f"BRAND LOGO POLICY: "
+        f"Use the attached brand logo asset only during the final silent "
+        f"2-second hold. Do not show the logo during the main spoken content. "
+        f"After the last spoken word, keep Marta/avatar visible, smiling "
+        f"naturally, with the logo visible as the only brand element. Do not "
+        f"add extra CTA text or new subtitles during this hold. "
         f"VIDEO STRUCTURE: "
         f"Open with avatar talking head, beauty clinic background, "
         f"warm professional lighting, portrait framing. "
@@ -631,7 +896,7 @@ def _preparar_video_agent_payload(
         f"B-roll must support the message without competing with captions "
         f"or the final CTA. If the scene direction asks for extra text, "
         f"large titles, treatment lists, floating labels, or decorative copy, "
-        f"ignore those text overlay requests and follow the BRAND CAPTION "
+        f"ignore those text overlay requests and follow the NATIVE SUBTITLES "
         f"POLICY instead. "
         f"ENDING POLICY - FOLLOW EXACTLY: "
         f"Do not cut the final sentence. The final CTA must be fully spoken "
@@ -661,6 +926,8 @@ def _preparar_video_agent_payload(
         "guion_tts_limpio": texto_tts,
         "max_broll_assets": max_broll_assets,
         "broll_assets": broll_assets,
+        "broll_selection": broll_selection,
+        "warnings": broll_selection["warnings"],
     }
 
 
@@ -771,11 +1038,12 @@ def main() -> None:
             texto_tts = _limpiar_texto_para_tts(texto)
             tipo_reel = _clasificar_tipo_reel(item, texto_tts)
             max_broll_assets = _max_broll_assets_para_item(item, texto_tts)
-            broll_assets = _seleccionar_broll(
+            broll_selection = _seleccionar_broll_detallado(
                 item,
                 max_assets=max_broll_assets,
                 tipo_reel=tipo_reel,
             )
+            broll_assets = broll_selection["assets_finales"]
             preview.append({
                 "fila": item.get("fila"),
                 "marta_fila": item.get("marta_fila"),
@@ -784,6 +1052,13 @@ def main() -> None:
                 "palabras_guion_hablado": _contar_palabras(texto_tts),
                 "emojis_eliminados_tts": texto_tts != texto,
                 "max_broll_assets": max_broll_assets,
+                "assets_solicitados_por_marta": broll_selection["assets_solicitados_por_marta"],
+                "assets_encontrados": broll_selection["assets_encontrados"],
+                "assets_no_encontrados": broll_selection["assets_no_encontrados"],
+                "assets_fallback": broll_selection["assets_fallback"],
+                "assets_finales": broll_selection["assets_finales"],
+                "motivo_seleccion": broll_selection["motivo_seleccion"],
+                "warnings": broll_selection["warnings"],
                 "broll_assets": broll_assets,
                 "files_payload": _files_para_video_agent(broll_assets),
             })
@@ -815,6 +1090,8 @@ def main() -> None:
                 "brandKitId": payload["brandKitId"],
                 "orientation": payload["orientation"],
                 "broll_assets": payload["broll_assets"],
+                "broll_selection": payload["broll_selection"],
+                "warnings": payload["warnings"],
                 "files": payload["files"],
                 "prompt": payload["prompt"],
             })
