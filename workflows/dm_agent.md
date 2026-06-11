@@ -22,7 +22,11 @@ Meta Webhooks → POST /webhook (ngrok → localhost:5000)
         │
         └─ Thread de fondo:
                │
-               ├─ Leer previous_response_id de SQLite (dm_context.db)
+               ├─ Detectar intención de cita/reserva/cambio/cancelación
+               │   └─ Si coincide: responder WhatsApp 656 376 435
+               │      sin OpenAI, sin memoria y sin simular agenda
+               │
+               ├─ Si no es reserva: leer previous_response_id de SQLite (dm_context.db)
                │
                ├─ OpenAI Responses API
                │   model: gpt-4o
@@ -84,7 +88,8 @@ SQLite `dm_context.db` (raíz del proyecto):
 | Caso | Comportamiento |
 |---|---|
 | Primera vez que escribe un usuario | No hay `previous_response_id` → nueva conversación |
-| Pregunta fuera de conocimiento | El agente redirige a WhatsApp 656 37 64 35 |
+| Pregunta fuera de conocimiento | El agente redirige a WhatsApp 656 376 435 |
+| Petición de cita, reserva, hueco, disponibilidad, cambio o cancelación | Respuesta fija a WhatsApp 656 376 435, sin llamar OpenAI ni simular agenda |
 | Error de OpenAI o Meta | Log + email a `EMAIL_COPIA_PRESTADOR` |
 | Mensaje del propio Instagram (eco) | Ignorado (`sender_id == instagram_user_id`) |
 | Mensaje sin texto (sticker, imagen) | Ignorado |

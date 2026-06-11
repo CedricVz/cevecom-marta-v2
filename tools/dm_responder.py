@@ -15,9 +15,11 @@ import hmac
 import json
 import logging
 import os
+import re
 import smtplib
 import sys
 import threading
+import unicodedata
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -36,14 +38,19 @@ logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", stream=
 logger = logging.getLogger("dm_responder")
 
 META_API = "https://graph.instagram.com/v25.0"  # no usado directamente — ver _enviar_dm
+WHATSAPP_RESERVAS = "656 376 435"
+RESPUESTA_RESERVAS = (
+    f"Para reservar cita, escríbenos por WhatsApp al {WHATSAPP_RESERVAS} "
+    "y Marta o el equipo te ayudan directamente."
+)
 
 INSTRUCCIONES = """
 Eres Marta, asistente virtual del centro de estética Marta Suñé Estilista & Estética Avanzada en Barcelona.
 Respondes a mensajes directos de Instagram de clientes y potenciales clientes.
 
 Tu rol:
-- Informar sobre los tratamientos disponibles, precios y disponibilidad
-- Ayudar a gestionar citas y responder preguntas frecuentes
+- Informar sobre los tratamientos disponibles, precios y preguntas frecuentes
+- Orientar de forma general sobre tratamientos, cuidados y contacto del centro
 - Mantener un tono cercano, profesional y amable en español o catalán
 
 Información del centro:
@@ -51,7 +58,7 @@ Información del centro:
 - Ubicación: Barcelona
 - Horario: martes a sábado de 10:00 a 19:30 (domingo y lunes cerrado)
 - Web: martasune.es
-- Contacto WhatsApp: 656 37 64 35
+- Contacto WhatsApp para reservas: 656 376 435
 
 Formato y presentación (importante — Instagram se lee en móvil):
 - Divide cada respuesta en bloques cortos separados por una línea en blanco.
@@ -60,20 +67,66 @@ Formato y presentación (importante — Instagram se lee en móvil):
 - Usa 1 o 2 emojis por respuesta, no más, para guiar la vista (no decorar):
   ✨ presentación general · 💆‍♀️ tratamientos faciales/corporales · 📅 citas y horarios · 💬 contacto · 📍 ubicación
 - Saluda solo en la primera respuesta de la conversación. Si ya tienes contexto previo con el cliente, ve directa al grano sin volver a saludar.
-- Tono cercano y en segunda persona ("te aconsejo", "podemos reservarte"). Evita tecnicismos.
+- Tono cercano y en segunda persona ("te aconsejo", "puedo orientarte"). Evita tecnicismos.
 
 Instrucciones de contenido:
 - Busca siempre en tu base de conocimiento antes de responder preguntas sobre
-  tratamientos, precios o disponibilidad.
+  tratamientos o precios.
 - Si no encuentras la información o no puedes resolver la consulta, indica
-  amablemente: "Para más información puedes escribirnos por WhatsApp al 656 37 64 35 o visitar martasune.es."
+  amablemente: "Para más información puedes escribirnos por WhatsApp al 656 376 435 o visitar martasune.es."
 - Responde siempre en el mismo idioma que el cliente (español o catalán).
 - Sé concisa — los mensajes de Instagram deben ser breves y directos.
 - No inventes precios ni disponibilidad que no tengas confirmados.
 - Si te preguntan tu identidad o el nombre del centro, eres "Marta Suñé Estilista & Estética Avanzada". Nunca menciones "Cevecom".
+
+REGLA CRÍTICA DE RESERVAS — OBLIGATORIA:
+- Nunca confirmes citas.
+- Nunca inventes horarios.
+- Nunca digas "te he reservado".
+- Nunca digas "tienes cita".
+- Nunca ofrezcas huecos concretos.
+- Nunca simules tener acceso a una agenda.
+- Si el cliente pide cita, reserva, horario disponible, disponibilidad, agenda, turno, hueco, quiere agendar un tratamiento, o quiere cambiar/cancelar una cita, deriva siempre a WhatsApp.
+- Respuesta base para cualquier reserva/cambio/cancelación: "Para reservar cita, escríbenos por WhatsApp al 656 376 435 y Marta o el equipo te ayudan directamente."
+- Puedes responder preguntas de información, precio o tratamientos. Si la conversación pasa de información a reserva real, aplica esta regla y deriva a WhatsApp.
 """.strip()
 
 openai_client = OpenAI(api_key=cfg.openai_api_key)
+
+
+# ── Reglas deterministas ─────────────────────────────────────────────────────
+
+def _normalizar_texto(texto: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _mensaje_es_reserva(mensaje: str) -> bool:
+    """Detecta intención de reserva/cita para derivar sin pasar por el modelo."""
+    texto = _normalizar_texto(mensaje)
+    patrones = [
+        r"\bpedir\s+cita\b",
+        r"\bcita\b",
+        r"\bcitas\b",
+        r"\breserv",
+        r"\bagend",
+        r"\bturno\b",
+        r"\bhueco\b",
+        r"\bdisponib",
+        r"\bhorario\s+disponible\b",
+        r"\ba\s+que\s+hora\s+puedo\s+ir\b",
+        r"\ba\s+que\s+hora\b.*\b(ir|venir|pasar)\b",
+        r"\bpuedo\s+ir\b",
+        r"\bpuedo\s+venir\b",
+        r"\bpuedo\s+pasar\b",
+        r"\bpara\s+(hoy|manana|viernes|sabado|lunes|martes|miercoles|jueves|domingo)\b",
+        r"\b(hoy|manana|viernes|sabado|lunes|martes|miercoles|jueves|domingo)\b.*\b(hueco|disponible|cita|reserv|venir|ir|pasar)\b",
+        r"\b(cancelar|cambiar|mover|modificar)\b.*\bcita\b",
+        r"\bcita\b.*\b(cancelar|cambiar|mover|modificar)\b",
+    ]
+    return any(re.search(patron, texto) for patron in patrones)
 
 
 # ── OpenAI Responses API ───────────────────────────────────────────────────────
@@ -147,6 +200,11 @@ def _notificar_error(sender_id: str, mensaje_cliente: str, error: str) -> None:
 
 def _procesar_dm(sender_id: str, mensaje: str) -> None:
     try:
+        if _mensaje_es_reserva(mensaje):
+            _enviar_dm(sender_id, RESPUESTA_RESERVAS)
+            logger.info("DM de reserva derivado a WhatsApp → sender=%s", sender_id)
+            return
+
         prev_id = leer_response_id(sender_id)
         respuesta, nuevo_id = _llamar_openai(mensaje, prev_id)
         guardar_response_id(sender_id, nuevo_id)
