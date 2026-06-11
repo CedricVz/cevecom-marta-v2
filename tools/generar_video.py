@@ -75,13 +75,13 @@ ASSET_CATALOG = [
     {
         "label": "clienta cancelando cita",
         "url": "https://drive.google.com/file/d/1PQBac_pV9G-Jug7aD-Tv4df3iVd8oZpW/view",
-        "asset_id": "2b6e926169ac42128d77b58c22826f45",
+        "asset_id": "0fea4209c90e47d69689d186fb1950e3",
         "keywords": ["cita", "cancelar", "cancelando", "agenda", "avisar", "reloj", "tiempo"],
     },
     {
         "label": "silla vacía del salón",
         "url": "https://drive.google.com/file/d/1SLAD4rzNzd2oqvSzrA6lsDK8gD8cke0s/view",
-        "asset_id": "79c691e646054dee862a41a4cd2275f1",
+        "asset_id": "c7e220e88be2498ea9bbcc2471bd5c7e",
         "keywords": ["silla", "vacia", "vacía", "espacio vacio", "hora perdida"],
     },
     {
@@ -124,7 +124,7 @@ ASSET_CATALOG = [
     {
         "label": "aplicar crema facial",
         "url": "https://drive.google.com/file/d/1YddOcZLToTJb18nn5sZBLxiKvtsFk2Pl/view",
-        "asset_id": "2008ba45158e443e9bce1d76fdbacb24",
+        "asset_id": "b90e48a00e11430c9bc3d96f19c0ec29",
         "keywords": ["aplicar crema", "crema facial", "video facial", "facial"],
     },
     {
@@ -167,7 +167,7 @@ ASSET_CATALOG = [
     {
         "label": "maderoterapia en camilla",
         "url": "https://drive.google.com/file/d/1zZqBq18SgdEm0JWRMPwWcibEAzk0Q5AV/view",
-        "asset_id": "1e0485d62d5041ccb964d18459ed7c53",
+        "asset_id": "f813f53a7bf24d61b00b56ec2d3b8215",
         "keywords": ["maderoterapia", "madero", "rodillos", "celulitis", "piernas", "hifu piernas", "reafirmar piernas", "corporal"],
     },
     {
@@ -185,7 +185,7 @@ ASSET_CATALOG = [
     {
         "label": "HIFU brazos",
         "url": "https://drive.google.com/file/d/1IIq5uLQXEiCoot_5xnI3hc_gz7a0PsLT/view",
-        "asset_id": "029ff6c1f53546f2b79a0fc194e7f08f",
+        "asset_id": "7582bf963cb4493f90640201cfcea405",
         "keywords": ["hifu", "hyfu", "brazos", "flacidez", "hifu brazos", "hifu corporal", "reafirmar"],
     },
     # Pelo
