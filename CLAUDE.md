@@ -16,7 +16,7 @@ Sistema automatizado de contenido para Instagram para el centro de estética
 - Ubicación: Barcelona
 - Horario: martes a sábado de 10:00 a 19:30 (domingo y lunes cerrado)
 - Web: martasune.es
-- WhatsApp: 656 37 64 35
+- WhatsApp: 656 376 435
 
 **Eliminados en limpieza mayo 2026** (pipeline v1/v2 y herramientas de setup):
 - `tools/generar_guion.py`, `tools/leer_pendientes.py`, `tools/generar_calendario.py`
@@ -290,6 +290,44 @@ Debug local: python tools/dm_responder.py + ngrok http 5000
 ---
 
 ## Próximo paso
+
+## Actualización tras reunión con Marta — Junio 2026
+
+Cedric editó manualmente los dos últimos vídeos para enviarlos a aprobación y ganar tiempo. Esos MP4 editados quedan fuera del flujo de corrección técnica por ahora: no deben tomarse como prueba de que el pipeline ya está resuelto ni como base para más postproducción.
+
+**Decisiones sobre vídeos HeyGen:**
+- Los vídeos deben hacerse exactamente como Marta los pide en el guion y en `notas_escenas`.
+- Si Marta pide assets concretos, el sistema debe respetarlos siempre que existan.
+- No limitar excesivamente duración ni número de assets solo por ahorro de créditos. El coste por vídeo se acepta si el resultado respeta mejor la dirección creativa de Marta.
+- El sistema debe obedecer la dirección creativa de Marta, controlando únicamente calidad visual, coherencia y ausencia de caos visual.
+- Mantener avatar protagonista, voz validada, TTS limpio sin emojis, subtítulos nativos simples y logo de marca solo al cierre cuando aplique.
+
+**Diagnóstico revisado de assets/B-roll:**
+- No convertir todos los assets en Canva ni normalizarlos a ciegas.
+- Cedric revisó carpetas y observa que casi todos los vídeos actuales parecen optimizados visualmente para Reels.
+- Las excepciones aparentes a revisar con prioridad son `radiofrecuencia facial` y un archivo con nombre parecido a `22024...1556`.
+- Nueva hipótesis técnica: algunos assets pueden verse bien en reproductores normales, pero estar codificados como landscape/square con rotación, SAR/DAR raro o metadata que HeyGen interpreta mal. También es posible que algunos `asset_id` de HeyGen correspondan a subidas antiguas/no normalizadas aunque el archivo actual en Drive esté correcto.
+- Próximo paso técnico: reconciliar archivo real en Drive, metadata técnica real y `asset_id` de HeyGen antes de convertir, reencuadrar o re-subir.
+
+**Cambio crítico en reservas/DMs:**
+- El agente de DMs no debe dar citas, confirmar disponibilidad ni inventar horarios.
+- Si una persona pide cita o reserva, debe derivar a WhatsApp: `656 376 435`.
+- Mensaje recomendado: “Para reservar cita, escríbenos por WhatsApp al 656 376 435 y Marta o el equipo te ayudan directamente.”
+- Revisar prompt/lógica del agente para evitar citas fantasma.
+
+**Botox capilar:**
+- Actualizar la base de conocimiento/vector con información correcta.
+- No prometer que elimina completamente encrespado/frizz.
+- Redactar respuestas seguras y fieles al criterio de Marta.
+
+**Knowledge base técnica:**
+- Crear `docs/knowledge/` con notas vivas por proveedor: HeyGen, Meta, OpenAI, Railway, Google Sheets y Canva/assets.
+- Cada nota debe incluir fuentes oficiales, qué usamos en este proyecto, decisiones tomadas, errores aprendidos, comandos útiles, fecha de última revisión y cómo mantenerla actualizada.
+
+**Renovación / propuesta comercial:**
+- Preparar más adelante propuesta de renovación mínima de 6 meses: mantenimiento del sistema, mejora continua del agente, actualización de knowledge base, generación de contenidos, soporte mensual y optimización del flujo de reservas/DMs.
+
+Ver tareas priorizadas en `docs/NEXT_STEPS_JUNIO_2026.md`.
 
 **Módulo 1 — estado real verificado el 31/05/2026**
 
