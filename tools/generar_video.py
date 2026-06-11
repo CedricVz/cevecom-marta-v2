@@ -350,8 +350,8 @@ EXPLICIT_ASSET_REQUESTS = [
     },
     {
         "solicitud": "salón",
-        "terms": ["salon", "salón"],
-        "labels": ["entrada del salón"],
+        "terms": ["salon", "salón", "centro", "local"],
+        "labels": ["cabina final grande"],
     },
     {
         "solicitud": "cabina",
