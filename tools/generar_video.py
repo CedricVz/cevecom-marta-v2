@@ -55,6 +55,20 @@ CENTRO_DIR     = "C/ Munné 15-17 bajos, Barcelona"
 BRAND_KIT_ID   = "bf6988fde35849079d09f9a6fa5b092d"
 HEYGEN_LOGO_ASSET_ID = "f51d0994f8fe4af9876fa5725df111f9"
 
+PATRONES_TTS_MARKUP_PROHIBIDOS = (
+    "<break",
+    "/>",
+    "<",
+    ">",
+    "time=",
+    "quote",
+    "slash",
+    "greater than",
+    "less than",
+    "ssml",
+    "xml",
+)
+
 ASSET_URLS = {
     "laser":               "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
     "depilacion":          "https://drive.google.com/file/d/1tulapnMn_VkVkQkzlRbS_Aqj357__iZa/view",
@@ -279,6 +293,17 @@ def _limpiar_texto_para_tts(texto: str) -> str:
     limpio = re.sub(r"\n{3,}", "\n\n", limpio)
     limpio = re.sub(r"[ \t]+([,.!?;:])", r"\1", limpio)
     return limpio.strip()
+
+
+def _validar_texto_tts_sin_markup(texto: str) -> None:
+    """Bloquea renders si el texto hablado contiene posible markup narrable."""
+    texto_lower = texto.casefold()
+    for patron in PATRONES_TTS_MARKUP_PROHIBIDOS:
+        if patron in texto_lower:
+            raise ValueError(
+                "Texto hablado contiene posible markup técnico para HeyGen "
+                f"(patrón detectado: {patron!r}). No se llama a HeyGen."
+            )
 
 
 def _leer_token_oauth_heygen() -> str:
@@ -816,6 +841,7 @@ def _preparar_video_agent_payload(
     adjuntar_broll_files: bool = True,
 ) -> dict:
     texto_tts = _limpiar_texto_para_tts(texto)
+    _validar_texto_tts_sin_markup(texto_tts)
     item_context = {"tema": titulo, "notas_escenas": notas_escenas, **(broll_context or {})}
     tipo_reel = _clasificar_tipo_reel(item_context, texto_tts)
     max_broll_assets = _max_broll_assets_para_item(item_context, texto_tts)
@@ -865,6 +891,12 @@ def _preparar_video_agent_payload(
         f"Use voice ID {voice_id}. "
         f"Brand colors: {BRAND_COLORS}. Brand kit ID: {BRAND_KIT_ID}. "
         f"Attached brand logo asset ID: {HEYGEN_LOGO_ASSET_ID}. "
+        f"NARRATION SEPARATION - FOLLOW EXACTLY: "
+        f"SPOKEN SCRIPT — ONLY THIS TEXT MAY BE SPOKEN. "
+        f"VISUAL INSTRUCTIONS — NEVER NARRATE THESE INSTRUCTIONS. "
+        f"Only the final SPOKEN SCRIPT block may be spoken by the avatar. "
+        f"All policies, scene notes, logo instructions, timing notes, and "
+        f"asset directions are visual instructions and must never be narrated. "
         f"NATIVE SUBTITLES POLICY - FOLLOW EXACTLY: "
         f"Use HeyGen native subtitles/captions if available. Keep them simple, "
         f"clean, bottom centered, highly legible on mobile, synchronized with "
@@ -879,11 +911,12 @@ def _preparar_video_agent_payload(
         f"the spoken script. Captions must match the spoken sentence and must "
         f"not compete with Marta's face. "
         f"BRAND LOGO POLICY: "
-        f"Use the attached brand logo asset only during the final silent "
-        f"2-second hold. Do not show the logo during the main spoken content. "
-        f"After the last spoken word, keep Marta/avatar visible, smiling "
-        f"naturally, with the logo visible as the only brand element. Do not "
-        f"add extra CTA text or new subtitles during this hold. "
+        f"Use the attached brand logo asset only after the spoken narration ends. "
+        f"Do not show the logo during the main spoken content. After the spoken "
+        f"narration ends, show a brief final visual moment with Marta/avatar "
+        f"visible, smiling naturally, and the brand logo as the only brand "
+        f"element. This is a visual instruction only. Do not add spoken words, "
+        f"captions, markup, SSML, XML, timing tags, or extra narration. "
         f"VIDEO STRUCTURE: "
         f"Open with avatar talking head, beauty clinic background, "
         f"warm professional lighting, portrait framing. "
@@ -898,19 +931,22 @@ def _preparar_video_agent_payload(
         f"large titles, treatment lists, floating labels, or decorative copy, "
         f"ignore those text overlay requests and follow the NATIVE SUBTITLES "
         f"POLICY instead. "
+        f"VISUAL SAFETY: "
+        f"Never create black screens, black rectangles, empty placeholders, "
+        f"missing media blocks, blank scenes, or visual gaps. Every second must "
+        f"contain the avatar, an approved B-roll asset, or a clean branded "
+        f"background. "
         f"ENDING POLICY - FOLLOW EXACTLY: "
         f"Do not cut the final sentence. The final CTA must be fully spoken "
-        f"and fully visible. After the last spoken word, keep Marta on screen "
-        f"for 2 full seconds, smiling naturally in silence. The final shot "
-        f"must show Marta/avatar visible on screen. During this final "
-        f"hold, show only Marta smiling and the brand logo. Do not add extra "
-        f"CTA text unless it is already part of the final spoken sentence. "
-        f"Do not add new subtitles during the silent hold. "
+        f"and fully visible. After the spoken narration ends, show a brief final "
+        f"visual moment with Marta smiling and the brand logo. This final moment "
+        f"is visual only: do not add spoken words, captions, markup, SSML, XML, "
+        f"timing tags, or extra narration. "
         f"Do not end on an empty screen, generic background, or B-roll without Marta. "
-        f"Do not fade out before the final 2-second hold is complete. "
+        f"Do not fade out before the final visual moment is complete. "
         f"STYLE: warm, professional, approachable. "
         f"{scene_direction}"
-        f"Speak EXACTLY this script word for word:\n\n{texto_tts}"
+        f"SPOKEN SCRIPT — ONLY THIS TEXT MAY BE SPOKEN:\n\n{texto_tts}"
     )
     return {
         "mode": "generate",
