@@ -355,3 +355,13 @@ No reenviar emails de aprobación por ahora.
    ahora podría procesar varias filas y consumir muchos créditos HeyGen.
 
 Módulo 2 sigue vivo respondiendo DMs en producción sin intervención.
+
+## Checkpoint activo de vídeo — Junio 2026
+
+Antes de continuar con generación o benchmark, leer:
+`docs/CHECKPOINT_VIDEO_MARTA_JUNIO_2026.md`
+
+Estado actual:
+- Fila 2 aprobada visualmente.
+- Fila 3 rechazada y pendiente de regeneración.
+- Próximo paso: aplicar contrato visual sin logo dentro de HeyGen y preparar benchmark de seis vídeos.
