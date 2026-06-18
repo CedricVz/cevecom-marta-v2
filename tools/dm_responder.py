@@ -33,6 +33,7 @@ from openai import OpenAI
 
 from config import cfg
 from tools.db_context import leer_response_id, guardar_response_id
+from tools.instagram_comments import procesar_comentarios_webhook
 
 logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger("dm_responder")
@@ -258,11 +259,40 @@ def recibir_evento():
 
     body = request.get_json(force=True, silent=True) or {}
     logger.debug("Evento recibido: %s", json.dumps(body)[:500])
+    if not isinstance(body, dict):
+        logger.warning("Payload Meta ignorado: body no es objeto JSON.")
+        return jsonify({"status": "ok"}), 200
 
-    for entry in body.get("entry", []):
-        for evento in entry.get("messaging", []):
-            sender_id = evento.get("sender", {}).get("id", "")
-            mensaje   = evento.get("message", {}).get("text", "")
+    entries = body.get("entry", [])
+    if entries is None:
+        entries = []
+    if not isinstance(entries, list):
+        logger.warning("Payload Meta ignorado parcialmente: entry no es lista.")
+        entries = []
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            logger.warning("Entry Meta ignorado: no es objeto.")
+            continue
+
+        messaging = entry.get("messaging", [])
+        if messaging is None:
+            messaging = []
+        if not isinstance(messaging, list):
+            logger.warning("Entry Meta ignorado para DMs: messaging no es lista.")
+            messaging = []
+
+        for evento in messaging:
+            if not isinstance(evento, dict):
+                logger.warning("Evento DM ignorado: no es objeto.")
+                continue
+            sender = evento.get("sender") or {}
+            message = evento.get("message") or {}
+            if not isinstance(sender, dict) or not isinstance(message, dict):
+                logger.warning("Evento DM ignorado: sender/message no son objetos.")
+                continue
+            sender_id = sender.get("id", "")
+            mensaje   = message.get("text", "")
 
             if not sender_id or not mensaje:
                 continue
@@ -276,6 +306,11 @@ def recibir_evento():
                 args=(sender_id, mensaje),
                 daemon=True,
             ).start()
+
+    try:
+        procesar_comentarios_webhook(body, async_mode=True)
+    except Exception as e:
+        logger.error("Error enrutando comentarios: %s: %s", type(e).__name__, e)
 
     return jsonify({"status": "ok"}), 200
 

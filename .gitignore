@@ -4,6 +4,7 @@ dm_context.db
 una_fila.json
 dos_fila.json
 __pycache__/
+*.py[cod]
 *.pyc
 *.pyo
 videos_generados/

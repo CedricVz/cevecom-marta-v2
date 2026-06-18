@@ -29,8 +29,11 @@ Antes de configurar el webhook necesitas estos valores para el `.env`:
 1. Ve a [developers.facebook.com/tools/explorer](https://developers.facebook.com/tools/explorer)
 2. Selecciona tu App en el desplegable superior
 3. Haz clic en "Generar token de acceso"
-4. Marca estos permisos:
+4. Marca estos permisos. Para comentarios, valida antes en documentación oficial
+   y en Meta App Review si `instagram_manage_comments` es el permiso exacto
+   requerido para tu app, cuenta y versión de Graph API:
    - `instagram_manage_messages`
+   - `instagram_manage_comments`
    - `instagram_basic`
    - `pages_show_list`
    - `pages_read_engagement`
@@ -70,6 +73,10 @@ FACEBOOK_PAGE_ID=<id_pagina_facebook>
 INSTAGRAM_USER_ID=<id_cuenta_instagram>
 FACEBOOK_ACCESS_TOKEN=<token_60_dias>
 META_WEBHOOK_VERIFY_TOKEN=cevecom_webhook_secret_2026
+
+# Comentarios publicos: mantener apagado hasta validar en Railway
+INSTAGRAM_COMMENTS_ENABLED=false
+INSTAGRAM_COMMENTS_DRY_RUN=true
 ```
 
 ---
@@ -122,13 +129,20 @@ considera el plan de pago de ngrok o usar un VPS.
 
 ---
 
-## Paso 6 — Suscribir al campo `messages`
+## Paso 6 — Suscribir campos de Instagram
 
 Después de verificar el webhook:
 
 1. En la misma página de Webhooks → sección Instagram
 2. Haz clic en **"Suscribirse"** junto al campo **`messages`**
-3. También suscríbete a `messaging_postbacks` si quieres gestionar botones en el futuro
+3. Para comentarios públicos, valida primero en Meta Developer el field exacto
+   y, si corresponde, suscríbete también al campo **`comments`**
+4. También suscríbete a `messaging_postbacks` si quieres gestionar botones en el futuro
+
+El módulo de comentarios espera, pendiente de validación real, eventos de
+comentarios como `entry[].changes[]` con `field="comments"`. Antes de producción
+hay que confirmar la estructura exacta del payload con un comentario tester real.
+El campo `messages` sigue llegando en `entry[].messaging[]`.
 
 ---
 
@@ -140,11 +154,22 @@ aprobados (algunos requieren revisión de Meta para uso en producción):
 | Permiso | Necesario para |
 |---|---|
 | `instagram_manage_messages` | Recibir y enviar DMs |
+| `instagram_manage_comments` | Candidato a recibir/responder comentarios públicos; validar en Meta |
 | `pages_messaging` | Enviar mensajes vía API |
 | `instagram_basic` | Leer info básica de la cuenta |
 
 Durante el desarrollo puedes usar el **modo de prueba** sin revisión, pero solo para
 usuarios añadidos como tester/developer en la app.
+
+Para comentarios públicos, antes de activar `INSTAGRAM_COMMENTS_DRY_RUN=false`
+valida manualmente:
+
+- permiso exacto requerido para comentarios;
+- field de webhook exacto;
+- estructura real del payload;
+- endpoint real de respuesta pública, actualmente preparado como
+  `POST /{comment_id}/replies`;
+- diferencias por tipo de cuenta y versión de Graph API.
 
 ---
 
@@ -167,6 +192,7 @@ usuarios añadidos como tester/developer en la app.
 | Webhook no verifica | Token incorrecto | Comprueba que `META_WEBHOOK_VERIFY_TOKEN` en `.env` coincide con el token en Facebook App |
 | Error 401 en eventos POST | Firma HMAC inválida | Comprueba `FACEBOOK_APP_SECRET` en `.env` |
 | No llegan eventos | Webhook no suscrito a `messages` | Revisa las suscripciones en Webhooks → Instagram |
+| No llegan comentarios | Field/permisos no validados o no suscritos | Revisa documentación oficial, Webhooks → Instagram y permisos de la app |
 | OpenAI error | Clave inválida o créditos insuficientes | Comprueba `OPENAI_API_KEY` y créditos en platform.openai.com |
 | Meta error al enviar DM | Token expirado | Renueva `FACEBOOK_ACCESS_TOKEN` |
 | ngrok URL cambia | Plan gratuito de ngrok | Reconfigura el webhook cada vez, o usa ngrok de pago |
