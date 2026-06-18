@@ -64,9 +64,9 @@ El endpoint principal de produccion es `/webhook`. El healthcheck de Railway usa
 ### Memoria conversacional
 
 - Pendiente fortalecer aislamiento por proyecto y perfil.
-- Pendiente fallback si OpenAI rechaza un `previous_response_id`.
+- Fallback si OpenAI rechaza un `previous_response_id` implementado localmente y pendiente de despliegue.
 - Pendiente guardar resumen o estado conversacional local para continuidad humana.
-- Fallback y clave compuesta estan planificados, no implementados.
+- Clave compuesta planificada, no implementada.
 
 ### Base de conocimiento
 
@@ -121,7 +121,7 @@ El endpoint principal de produccion es `/webhook`. El healthcheck de Railway usa
 - Recupera `response_id` desde PostgreSQL y lo envia como `previous_response_id`.
 - Guarda el nuevo `response_id` tras cada respuesta correcta.
 - Si la consulta es de reserva, deriva a WhatsApp sin pasar por el modelo.
-- Riesgo conocido: si OpenAI rechaza el contexto remoto, no hay fallback implementado.
+- Fallback ante contexto remoto invalido implementado localmente y pendiente de despliegue.
 
 ## Estado del modulo de comentarios
 
@@ -143,7 +143,7 @@ El endpoint principal de produccion es `/webhook`. El healthcheck de Railway usa
 
 - Memoria local fragil: solo conserva puntero remoto.
 - Dependencia de OpenAI para recuperar el contexto previo.
-- Sin fallback ante `previous_response_id` invalido.
+- Fallback local ante `previous_response_id` invalido pendiente de despliegue.
 - Sin aislamiento por proyecto, perfil, canal o cuenta.
 - Vector Store sin metadatos de version, propietario, vigencia o reemplazo.
 - Posible solapamiento entre documentos de Botox.
@@ -151,7 +151,7 @@ El endpoint principal de produccion es `/webhook`. El healthcheck de Railway usa
 
 ## Siguiente bloque aprobado
 
-Bloque aprobado actual: Fase 0, documentar arquitectura y preparar saneamiento de conocimiento.
+Bloque aprobado actual: Cambio A, fallback seguro ante `previous_response_id` invalido.
 
 No estan aprobados todavia:
 

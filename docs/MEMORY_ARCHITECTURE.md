@@ -60,7 +60,7 @@ No se guarda localmente:
 
 La continuidad conversacional depende de que OpenAI siga reconociendo el `previous_response_id`.
 
-Si OpenAI conserva el contexto remoto, el agente puede continuar la conversacion. Si OpenAI rechaza, pierde o expira ese contexto, el sistema actual no tiene fallback implementado.
+Si OpenAI conserva el contexto remoto, el agente puede continuar la conversacion. Si OpenAI rechaza, pierde o expira ese contexto con un error especifico de `previous_response_id`, el fallback queda implementado localmente y pendiente de despliegue: se reintenta una sola vez sin contexto previo.
 
 ## Si se pierde la fila de PostgreSQL
 
@@ -68,7 +68,7 @@ Si se pierde una fila de `dm_context`, el sistema no encuentra `previous_respons
 
 ## Si el contexto remoto deja de existir
 
-Si OpenAI rechaza el `previous_response_id`, la llamada normal puede fallar. Actualmente no hay retry sin contexto ni marca de `context_reset`.
+Si OpenAI rechaza el `previous_response_id` con una senal estructurada de contexto invalido, la llamada normal se reintenta una sola vez sin `previous_response_id`. El reset se registra en logs como `context_reset`. Este cambio esta implementado localmente y pendiente de despliegue.
 
 ## Limitaciones para intervencion humana
 
@@ -86,7 +86,6 @@ No hay aislamiento por:
 - `channel_account_id`.
 - `external_user_id`.
 - `knowledge_base_id`.
-- Fallback ante contexto remoto invalido.
 
 Riesgo: si el mismo identificador externo aparece en otro contexto, o si el sistema se reutiliza para otra cuenta, podria reutilizarse un `previous_response_id` incorrecto o consultarse una base de conocimiento no adecuada.
 
@@ -122,53 +121,44 @@ human_handoff
 last_message_at
 ```
 
-No implementar todavia. Esta fase solo documenta.
+No implementar todavia la clave compuesta. El fallback de contexto invalido queda implementado localmente y pendiente de despliegue.
 
-## Plan no ejecutado - Cambio A: fallback de previous_response_id invalido
+## Cambio A implementado localmente - fallback de previous_response_id invalido
 
-Flujo propuesto:
+Flujo implementado localmente:
 
 ```text
 intento normal
 -> error de contexto reconocido
 -> retry una vez sin previous_response_id
 -> guardar nuevo response_id
--> registrar context_reset
+-> registrar context_reset en logs
 ```
 
-Archivos afectados previstos:
+Archivos afectados:
 
-- `tools/dm_responder.py`: envolver la llamada a Responses API y detectar errores de contexto.
-- `tools/db_context.py`: guardar el nuevo `response_id` y, si se aprueba, un indicador de reset.
+- `tools/dm_responder.py`: envuelve la llamada a Responses API y detecta errores de contexto.
+- `tools/db_context.py`: sin cambios; se reutiliza `guardar_response_id`.
 - Documentacion: actualizar este archivo y `docs/PROJECT_STATE.md`.
 
-SQL propuesto si se decide registrar resets:
-
-```sql
-ALTER TABLE dm_context
-ADD COLUMN context_reset_count INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN last_context_reset_at TIMESTAMPTZ;
-```
+No hay migracion SQL ni cambios de esquema para este cambio.
 
 Compatibilidad con registros existentes:
 
 - Los 16 registros actuales seguirian siendo validos.
-- Los nuevos campos tendrian `DEFAULT` o permitirian `NULL`.
+- El nuevo `response_id` reemplaza al anterior solo si el retry tiene exito.
 
 Rollback:
 
-```sql
-ALTER TABLE dm_context
-DROP COLUMN IF EXISTS context_reset_count,
-DROP COLUMN IF EXISTS last_context_reset_at;
-```
+- Revertir el cambio de codigo en `tools/dm_responder.py`.
+- No hay rollback de esquema.
 
 Pruebas locales:
 
-- Simular `previous_response_id` invalido.
-- Verificar retry unico sin `previous_response_id`.
-- Verificar que se guarda el nuevo `response_id`.
-- Verificar que no se hace bucle infinito de retries.
+- Simulan `previous_response_id` invalido.
+- Verifican retry unico sin `previous_response_id`.
+- Verifican que se guarda el nuevo `response_id`.
+- Verifican que no se hace bucle infinito de retries.
 
 Prueba controlada en produccion:
 

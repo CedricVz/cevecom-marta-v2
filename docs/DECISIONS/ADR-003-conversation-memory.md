@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aceptada como continuidad actual; requiere mejora antes de multiperfiles.
+Aceptada como continuidad actual. Fallback ante contexto invalido implementado localmente y pendiente de despliegue; clave compuesta pendiente antes de multiperfiles.
 
 ## Contexto
 
@@ -10,9 +10,13 @@ El agente de DMs necesita mantener continuidad entre mensajes del mismo usuario.
 
 La auditoria confirmo que no se guarda resumen local, estado del lead, tratamiento consultado, perfil, proyecto, canal ni base de conocimiento usada.
 
+Cambio A implementa localmente un fallback minimo: si OpenAI rechaza de forma especifica el `previous_response_id`, se registra `context_reset` en logs y se reintenta una sola vez sin contexto previo. No cambia el esquema de PostgreSQL.
+
 ## Decision
 
 Mantener `previous_response_id` como mecanismo actual de continuidad para Marta Estetica en una sola cuenta.
+
+Implementar fallback local ante `previous_response_id` invalido, pendiente de despliegue y validacion en produccion.
 
 Planificar una evolucion futura hacia clave compuesta:
 
@@ -29,13 +33,14 @@ No implementar todavia CRM ni memoria comercial completa.
 ## Razones
 
 - El mecanismo actual ya funciona en produccion.
+- El fallback mejora la disponibilidad para clientes si el contexto remoto deja de existir.
 - Minimiza almacenamiento de mensajes privados.
 - Es simple y suficiente para la fase de una sola cuenta.
 - Permite posponer un CRM hasta conocer mejor el flujo comercial real.
 
 ## Consecuencias
 
-- Si OpenAI rechaza o pierde el contexto remoto, la continuidad se rompe.
+- Si OpenAI rechaza o pierde el contexto remoto por `previous_response_id` invalido, el sistema puede reiniciar conversacion con un unico retry sin contexto.
 - Si se pierde una fila de PostgreSQL, no hay resumen local para reconstruir.
 - No permite aislar correctamente varios proyectos, perfiles o cuentas.
 - No permite una intervencion humana informada solo con datos locales.

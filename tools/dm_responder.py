@@ -152,6 +152,74 @@ def _llamar_openai(mensaje: str, prev_response_id: Optional[str]) -> tuple:
     return response.output_text, response.id
 
 
+def _campo_error_openai(exc: Exception, campo: str) -> str:
+    valor = getattr(exc, campo, None)
+    if valor:
+        return str(valor)
+
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            body = error
+        valor = body.get(campo)
+        if valor:
+            return str(valor)
+
+    return ""
+
+
+def _es_error_previous_response_id_invalido(exc: Exception) -> bool:
+    """Devuelve True solo si OpenAI senala que el contexto previo es invalido."""
+    status_code = getattr(exc, "status_code", None)
+    if status_code not in {400, 404}:
+        return False
+
+    error_type = _campo_error_openai(exc, "type").lower()
+    if error_type and error_type != "invalid_request_error":
+        return False
+
+    param = _campo_error_openai(exc, "param").lower()
+    code = _campo_error_openai(exc, "code").lower()
+    message = (getattr(exc, "message", "") or str(exc)).lower()
+
+    if param == "previous_response_id":
+        return True
+
+    if "previous_response_id" in code or "previous_response" in code:
+        return True
+
+    menciona_contexto_previo = (
+        "previous_response_id" in message
+        or "previous response" in message
+        or "previous_response" in message
+    )
+    if not menciona_contexto_previo:
+        return False
+
+    return any(
+        pista in message
+        for pista in (
+            "invalid",
+            "not found",
+            "does not exist",
+            "no response",
+            "unknown",
+            "expired",
+            "deleted",
+            "unavailable",
+        )
+    )
+
+
+def _id_seguro_para_log(value: Optional[str]) -> str:
+    if not value:
+        return "None"
+    if len(value) <= 4:
+        return "***"
+    return f"...{value[-4:]}"
+
+
 # ── Meta Graph API ─────────────────────────────────────────────────────────────
 
 def _enviar_dm(sender_id: str, texto: str) -> None:
@@ -207,10 +275,26 @@ def _procesar_dm(sender_id: str, mensaje: str) -> None:
             return
 
         prev_id = leer_response_id(sender_id)
-        respuesta, nuevo_id = _llamar_openai(mensaje, prev_id)
+        try:
+            respuesta, nuevo_id = _llamar_openai(mensaje, prev_id)
+        except Exception as e:
+            if prev_id and _es_error_previous_response_id_invalido(e):
+                logger.warning(
+                    "context_reset: contexto remoto invalido; reiniciando conversacion -> sender=%s",
+                    _id_seguro_para_log(sender_id),
+                )
+                respuesta, nuevo_id = _llamar_openai(mensaje, None)
+            else:
+                raise
+
         guardar_response_id(sender_id, nuevo_id)
         _enviar_dm(sender_id, respuesta)
-        logger.info("DM respondido → sender=%s | prev=%s → nuevo=%s", sender_id, prev_id, nuevo_id)
+        logger.info(
+            "DM respondido → sender=%s | prev=%s → nuevo=%s",
+            sender_id,
+            _id_seguro_para_log(prev_id),
+            _id_seguro_para_log(nuevo_id),
+        )
     except Exception as e:
         logger.error("Error procesando DM de %s: %s: %s", sender_id, type(e).__name__, e)
         _notificar_error(sender_id, mensaje, f"{type(e).__name__}: {e}")
