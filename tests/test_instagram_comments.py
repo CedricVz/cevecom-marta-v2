@@ -110,7 +110,11 @@ class InstagramCommentsTests(unittest.TestCase):
         responder.assert_not_called()
         self.assertEqual(marks[0]["args"][1], "dry_run")
         self.assertEqual(marks[0]["kwargs"]["classification"], "consulta_general")
-        self.assertIn(comments.WHATSAPP_RESERVAS_URL, marks[0]["kwargs"]["response_text"])
+        self.assertEqual(
+            marks[0]["kwargs"]["response_text"],
+            "Gracias por escribirnos. Para orientarte correctamente, "
+            "puedes escribirnos por WhatsApp al 656 376 435.",
+        )
 
     def test_intencion_reserva(self):
         _registrar, responder, marks = self._run_event("Quiero pedir cita para HIFU")
@@ -118,7 +122,11 @@ class InstagramCommentsTests(unittest.TestCase):
         responder.assert_not_called()
         self.assertEqual(marks[0]["args"][1], "dry_run")
         self.assertEqual(marks[0]["kwargs"]["classification"], "reserva")
-        self.assertIn(comments.WHATSAPP_RESERVAS_URL, marks[0]["kwargs"]["response_text"])
+        self.assertEqual(
+            marks[0]["kwargs"]["response_text"],
+            "Para reservar cita, escríbenos por WhatsApp al 656 376 435 "
+            "y Marta o el equipo te ayudan directamente.",
+        )
 
     def test_queja_no_responde(self):
         _registrar, responder, marks = self._run_event("Fatal, quiero poner una queja")

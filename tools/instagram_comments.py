@@ -191,8 +191,8 @@ def clasificar_comentario(text: str) -> CommentDecision:
             "reserva",
             True,
             (
-                "Para reservar cita, escríbenos por WhatsApp: "
-                f"{WHATSAPP_RESERVAS_URL}"
+                f"Para reservar cita, escríbenos por WhatsApp al {WHATSAPP_RESERVAS} "
+                "y Marta o el equipo te ayudan directamente."
             ),
         )
 
@@ -227,8 +227,8 @@ def clasificar_comentario(text: str) -> CommentDecision:
             "consulta_general",
             True,
             (
-                "Gracias por escribirnos. Para darte la información adecuada, "
-                f"puedes contactarnos por WhatsApp: {WHATSAPP_RESERVAS_URL}"
+                "Gracias por escribirnos. Para orientarte correctamente, "
+                f"puedes escribirnos por WhatsApp al {WHATSAPP_RESERVAS}."
             ),
         )
 
