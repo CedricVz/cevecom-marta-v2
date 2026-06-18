@@ -143,6 +143,31 @@ ngrok http 5000
 
 **Migración SQLite → Postgres** (one-shot, ya realizada): `tools/migrar_sqlite_a_postgres.py`
 
+### Módulo de comentarios de Instagram — CERRADO
+
+Validado en producción: 18 de junio de 2026
+Commit de referencia: `38b1bff`
+Cuenta: `martasunestilista`
+
+Prueba real:
+- `comentario_id`: `18372292816224134`
+- `media_id`: `18008838571127505`
+- clasificación: `felicitacion`
+- respuesta: `Muchas gracias. Nos alegra mucho que te guste.`
+- estado: `published`
+
+Anti-bucle:
+- comentario propio: `18065988569438293`
+- resultado: `ignored_own_account`
+
+Configuración validada:
+- `INSTAGRAM_COMMENTS_ENABLED=true`
+- `INSTAGRAM_COMMENTS_DRY_RUN=false`
+- `comments_can_publish=True`
+
+Conclusión:
+El flujo webhook → clasificación → respuesta pública → persistencia PostgreSQL → anti-bucle está validado de extremo a extremo. No requiere más cambios salvo que aparezca un fallo nuevo reproducible.
+
 ---
 
 ## Variables de entorno

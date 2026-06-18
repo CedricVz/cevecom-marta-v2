@@ -182,6 +182,51 @@ Comportamiento:
 9. Solo tras revisar clasificaciones reales, poner
    `INSTAGRAM_COMMENTS_DRY_RUN=false`.
 
+## Validacion de produccion
+
+Fecha de validacion: 2026-06-18
+
+Commit de referencia: `38b1bff`
+
+Cuenta validada: `martasunestilista`
+
+Configuracion funcional confirmada:
+
+```text
+INSTAGRAM_COMMENTS_ENABLED=true
+INSTAGRAM_COMMENTS_DRY_RUN=false
+comments_can_publish=True
+```
+
+Prueba publica final:
+
+```text
+comment_id: 18372292816224134
+media_id: 18008838571127505
+classification: felicitacion
+response_text: Muchas gracias. Nos alegra mucho que te guste.
+status: published
+updated_at: 2026-06-18 19:16:42 UTC
+```
+
+La respuesta fue comprobada visualmente en Instagram. No hubo error de Graph
+API y el evento no fue tratado como duplicado.
+
+Anti-bucle:
+
+```text
+comment_id: 18065988569438293
+resultado: ignored_own_account
+updated_at: 2026-06-18 19:16:44 UTC
+```
+
+El segundo webhook correspondio a la respuesta publicada por la propia cuenta.
+El estado `ignored_own_account` evito correctamente que el modulo respondiera a
+su propia respuesta.
+
+Conclusion: el modulo de comentarios queda cerrado. No requiere mas cambios
+salvo que aparezca un fallo nuevo reproducible.
+
 ## Rollback
 
 Rollback inmediato sin deploy:
